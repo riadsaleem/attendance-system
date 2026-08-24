@@ -144,7 +144,7 @@ class PdfService {
         )
         .toList();
 
-    return pw.Table.fromTextArray(
+    return pw.TableHelper.fromTextArray(
       headers: <String>['#', 'اسم الطالب', 'حاضر', 'متأخر', 'غائب', 'النسبة'],
       data: rows,
       border: pw.TableBorder.all(
