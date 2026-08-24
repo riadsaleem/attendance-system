@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../core/utils/supabase_retry.dart';
 import '../domain/user_profile.dart';
 
 class AuthRepository {
@@ -32,10 +33,15 @@ class AuthRepository {
 
   Future<void> signOut() => _auth.signOut();
 
-  Future<UserProfile> fetchProfile(String userId) async {
-    final Map<String, dynamic> row =
-        await _client.from('profiles').select().eq('id', userId).single();
-    return UserProfile.fromJson(row);
+  Future<UserProfile> fetchProfile(String userId) {
+    return supabaseRetry(() async {
+      final Map<String, dynamic> row = await _client
+          .from('profiles')
+          .select()
+          .eq('id', userId)
+          .single();
+      return UserProfile.fromJson(row);
+    });
   }
 
   Future<void> updateProfileName(String userId, String fullName) {

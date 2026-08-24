@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../core/utils/supabase_retry.dart';
 import '../domain/models.dart';
 
 class StudentsRepository {
@@ -10,14 +11,14 @@ class StudentsRepository {
   static const String _select =
       '*, classes(name, grades(name))';
 
-  Future<List<Student>> fetchAll() async {
+  Future<List<Student>> fetchAll() => supabaseRetry(() async {
     final rows = await _client
         .from('students')
         .select(_select)
         .eq('is_active', true)
         .order('full_name');
     return rows.map(Student.fromJson).toList();
-  }
+  });
 
   Future<void> insert(Student student) =>
       _client.from('students').insert(student.toDbJson());
@@ -33,20 +34,20 @@ class ClassesRepository {
 
   final SupabaseClient _client;
 
-  Future<List<Grade>> fetchGrades() async {
+  Future<List<Grade>> fetchGrades() => supabaseRetry(() async {
     final rows =
         await _client.from('grades').select('id, name').order('id');
     return rows.map(Grade.fromJson).toList();
-  }
+  });
 
-  Future<List<SchoolClass>> fetchClasses() async {
+  Future<List<SchoolClass>> fetchClasses() => supabaseRetry(() async {
     final rows = await _client
         .from('classes')
         .select('*, grades(name)')
         .order('grade_id')
         .order('name');
     return rows.map(SchoolClass.fromJson).toList();
-  }
+  });
 
   Future<void> insertGrade(String name) =>
       _client.from('grades').insert({'name': name});

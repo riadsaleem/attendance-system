@@ -30,7 +30,7 @@ class _StudentsScreenState extends ConsumerState<StudentsScreen> {
     final AsyncValue<List<Student>> students = ref.watch(studentsProvider);
     final AsyncValue<List<SchoolClass>> classes = ref.watch(classesProvider);
 
-    final bool isAdmin = profile.value?.role.canManageStudents ?? false;
+    final bool isAdmin = profile.valueOrNull?.role.canManageStudents ?? false;
 
     return Scaffold(
       appBar: AppBar(

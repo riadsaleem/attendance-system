@@ -1,6 +1,7 @@
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../core/utils/supabase_retry.dart';
 import '../domain/dashboard_models.dart';
 
 class DashboardRepository {
@@ -8,7 +9,7 @@ class DashboardRepository {
 
   final SupabaseClient _client;
 
-  Future<DashboardData> fetch() async {
+  Future<DashboardData> fetch() => supabaseRetry(() async {
     final DateTime now = DateTime.now();
     final DateTime from = DateTime(now.year, now.month, now.day)
         .subtract(const Duration(days: 29));
@@ -72,5 +73,5 @@ class DashboardRepository {
       week: week,
       risks: risks.take(5).toList(),
     );
-  }
+  });
 }

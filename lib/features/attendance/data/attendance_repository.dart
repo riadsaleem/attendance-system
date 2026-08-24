@@ -2,7 +2,7 @@ import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/constants/app_constants.dart';
-
+import '../../../core/utils/supabase_retry.dart';
 import '../domain/attendance_models.dart';
 
 class AttendanceRepository {
@@ -15,34 +15,36 @@ class AttendanceRepository {
   Future<List<AttendanceLog>> fetchForDate(
     DateTime date, {
     int? classId,
-  }) async {
-    var query = _client
-        .from('attendance_logs')
-        .select('*, students(id, full_name, class_id)')
-        .eq('attendance_date', _fmt(date));
-    if (classId != null) {
-      query = query.eq('students.class_id', classId);
-    }
-    final rows = await query;
-    return rows.map(AttendanceLog.fromJson).toList();
-  }
+  }) =>
+      supabaseRetry(() async {
+        var query = _client
+            .from('attendance_logs')
+            .select('*, students(id, full_name, class_id)')
+            .eq('attendance_date', _fmt(date));
+        if (classId != null) {
+          query = query.eq('students.class_id', classId);
+        }
+        final rows = await query;
+        return rows.map(AttendanceLog.fromJson).toList();
+      });
 
   Future<List<AttendanceLog>> fetchRange(
     DateTime from,
     DateTime to, {
     int? classId,
-  }) async {
-    var query = _client
-        .from('attendance_logs')
-        .select('*, students(id, full_name, class_id)')
-        .gte('attendance_date', _fmt(from))
-        .lte('attendance_date', _fmt(to));
-    if (classId != null) {
-      query = query.eq('students.class_id', classId);
-    }
-    final rows = await query;
-    return rows.map(AttendanceLog.fromJson).toList();
-  }
+  }) =>
+      supabaseRetry(() async {
+        var query = _client
+            .from('attendance_logs')
+            .select('*, students(id, full_name, class_id)')
+            .gte('attendance_date', _fmt(from))
+            .lte('attendance_date', _fmt(to));
+        if (classId != null) {
+          query = query.eq('students.class_id', classId);
+        }
+        final rows = await query;
+        return rows.map(AttendanceLog.fromJson).toList();
+      });
 
   Future<void> upsertEntries({
     required List<AttendanceEntry> entries,

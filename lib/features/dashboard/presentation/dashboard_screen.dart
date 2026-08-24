@@ -27,7 +27,7 @@ class DashboardScreen extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'مرحباً، ${profile.value?.fullName ?? ''}',
+              'مرحباً، ${profile.valueOrNull?.fullName ?? ''}',
               style: theme.textTheme.titleMedium
                   ?.copyWith(fontWeight: FontWeight.w700),
             ),

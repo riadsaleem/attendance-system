@@ -91,7 +91,7 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen> {
                   final classStudents = allStudents
                       .where((s) => s.classId == _classId)
                       .toList();
-                  final savedLogs = logs.value ?? {};
+                  final savedLogs = logs.valueOrNull ?? const {};
 
                   if (classStudents.isEmpty) {
                     return const Expanded(
@@ -209,11 +209,11 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen> {
     try {
       final userId =
           ref.read(supabaseClientProvider).auth.currentUser!.id;
-      final classStudents = (ref.read(studentsProvider).value ?? [])
+      final classStudents = (ref.read(studentsProvider).valueOrNull ?? const [])
           .where((s) => s.classId == _classId)
           .toList();
       final savedLogs =
-          ref.read(logsForDateProvider(_date)).value ?? {};
+          ref.read(logsForDateProvider(_date)).valueOrNull ?? const {};
 
       final entries = classStudents
           .map((s) => AttendanceEntry(

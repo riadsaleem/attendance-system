@@ -23,7 +23,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final ThemeData theme = Theme.of(context);
     final AsyncValue<UserProfile?> profile = ref.watch(currentProfileProvider);
     final ThemeMode themeMode = ref.watch(themeProvider);
-    final UserProfile? user = profile.value;
+    final UserProfile? user = profile.valueOrNull;
 
     return Scaffold(
       appBar: AppBar(title: const Text('الإعدادات')),

@@ -1,6 +1,7 @@
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../../core/utils/supabase_retry.dart';
 import '../domain/report_models.dart';
 
 class ReportsRepository {
@@ -16,19 +17,20 @@ class ReportsRepository {
     required DateTime anchor,
     int? classId,
     required String className,
-  }) async {
-    final (DateTime from, DateTime to, String periodLabel) =
-        _resolvePeriod(type, anchor);
+  }) =>
+      supabaseRetry(() async {
+        final (DateTime from, DateTime to, String periodLabel) =
+            _resolvePeriod(type, anchor);
 
-    var query = _client
-        .from('attendance_logs')
-        .select(_select)
-        .gte('attendance_date', DateFormat('yyyy-MM-dd').format(from))
-        .lte('attendance_date', DateFormat('yyyy-MM-dd').format(to));
-    if (classId != null) {
-      query = query.eq('students.class_id', classId);
-    }
-    final rows = await query.order('attendance_date');
+        var query = _client
+            .from('attendance_logs')
+            .select(_select)
+            .gte('attendance_date', DateFormat('yyyy-MM-dd').format(from))
+            .lte('attendance_date', DateFormat('yyyy-MM-dd').format(to));
+        if (classId != null) {
+          query = query.eq('students.class_id', classId);
+        }
+        final rows = await query.order('attendance_date');
 
     final Map<String, List<int>> perStudent = {};
     for (final Map<String, dynamic> row in rows) {
@@ -67,7 +69,7 @@ class ReportsRepository {
       summary: ReportSummary(present: present, late: late, absent: absent),
       rows: studentRows,
     );
-  }
+      });
 
   (DateTime, DateTime, String) _resolvePeriod(
       ReportType type, DateTime anchor) {

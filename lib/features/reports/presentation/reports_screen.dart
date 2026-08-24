@@ -59,7 +59,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
   Future<void> _generate() async {
     setState(() => _loading = true);
     try {
-      final classes = ref.read(classesProvider).value ?? [];
+      final classes = ref.read(classesProvider).valueOrNull ?? const [];
       final String className = _classId == null
           ? 'كل الصفوف'
           : classes.firstWhere((c) => c.id == _classId).displayName;
