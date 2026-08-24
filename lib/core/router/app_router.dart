@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../features/assistant/presentation/assistant_screen.dart';
 import '../../features/auth/presentation/login_screen.dart';
 import '../../features/auth/presentation/register_screen.dart';
 import '../../features/auth/providers/auth_providers.dart';
@@ -35,6 +36,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: RegisterScreen.routePath,
         builder: (context, state) => const RegisterScreen(),
+      ),
+      GoRoute(
+        path: AssistantScreen.routePath,
+        builder: (context, state) => const AssistantScreen(),
       ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) =>

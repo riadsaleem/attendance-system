@@ -39,6 +39,11 @@ class DashboardScreen extends ConsumerWidget {
           ],
         ),
       ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => context.push('/assistant'),
+        icon: const Icon(Icons.smart_toy_rounded),
+        label: const Text('المساعد الذكي'),
+      ),
       body: RefreshIndicator(
         onRefresh: () async => ref.refresh(dashboardProvider.future),
         child: data.when(
