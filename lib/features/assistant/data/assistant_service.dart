@@ -217,7 +217,7 @@ class AssistantService {
     final String dateStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
     final rows = await _client
         .from('attendance_logs')
-        .select('students(full_name), classes(name)')
+        .select('students(full_name, classes(name))')
         .eq('attendance_date', dateStr)
         .eq('status', 'absent');
     if (rows.isEmpty) {
@@ -225,10 +225,14 @@ class AssistantService {
     }
     final StringBuffer buffer = StringBuffer('❌ الغائبون اليوم (${rows.length}):\n\n');
     for (final Map<String, dynamic> row in rows) {
-      final String name =
-          ((row['students'] as Map<String, dynamic>?)?['full_name'] ?? '؟')
+      final Map<String, dynamic>? student =
+          row['students'] as Map<String, dynamic>?;
+      final String name = (student?['full_name'] ?? '؟') as String;
+      final String className =
+          ((student?['classes'] as Map<String, dynamic>?)?['name'] ?? '')
               as String;
-      buffer.writeln('• $name');
+      buffer.writeln(
+          className.isEmpty ? '• $name' : '• $name ($className)');
     }
     return buffer.toString();
   }
