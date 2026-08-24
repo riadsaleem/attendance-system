@@ -63,7 +63,7 @@ class ReportData {
 
   String get textSummary {
     final StringBuffer buffer = StringBuffer();
-    buffer.writeln('$titleAr');
+    buffer.writeln(titleAr);
     buffer.writeln('الصف: $className');
     buffer.writeln('الفترة: $periodLabel');
     buffer.writeln('──────────────────');
