@@ -164,19 +164,28 @@ class _StudentFormScreenState extends ConsumerState<StudentFormScreen> {
                   const SizedBox(height: 18),
                   AppTextField(
                     controller: _guardianName,
-                    label: 'اسم ولي الأمر',
-                    hint: 'اختياري',
+                    label: 'اسم ولي الأمر *',
+                    hint: 'مثال: محمد صالح',
                     prefixIcon: Icons.family_restroom_rounded,
                     textInputAction: TextInputAction.next,
+                    validator: (v) =>
+                        (v ?? '').trim().length < 3 ? 'أدخل اسم ولي الأمر' : null,
                   ),
                   const SizedBox(height: 18),
                   AppTextField(
                     controller: _guardianPhone,
-                    label: 'جوال ولي الأمر',
-                    hint: 'اختياري — مثال: 777123456',
+                    label: 'جوال ولي الأمر *',
+                    hint: 'مثال: 777123456 — لإبلاغه بالغياب',
                     prefixIcon: Icons.phone_outlined,
                     keyboardType: TextInputType.phone,
                     textInputAction: TextInputAction.next,
+                    validator: (v) {
+                      final String digits =
+                          (v ?? '').replaceAll(RegExp(r'[^\d]'), '');
+                      if (digits.isEmpty) return 'أدخل رقم جوال ولي الأمر';
+                      if (digits.length < 9) return 'الرقم قصير جداً';
+                      return null;
+                    },
                   ),
                   const SizedBox(height: 18),
                   AppTextField(

@@ -7,6 +7,8 @@ import 'package:go_router/go_router.dart';
 import '../../../core/widgets/state_views.dart';
 import '../../auth/domain/user_profile.dart';
 import '../../auth/providers/auth_providers.dart';
+import '../../staff/domain/staff_models.dart';
+import '../../staff/presentation/staff_screen.dart';
 import '../domain/dashboard_models.dart';
 import '../providers/dashboard_providers.dart';
 
@@ -27,7 +29,7 @@ class DashboardScreen extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'مرحباً، ${profile.valueOrNull?.fullName ?? ''}',
+              'مرحباً ${profile.valueOrNull?.fullName ?? ''} 👋',
               style: theme.textTheme.titleMedium
                   ?.copyWith(fontWeight: FontWeight.w700),
             ),
@@ -39,27 +41,177 @@ class DashboardScreen extends ConsumerWidget {
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
+      floatingActionButton: FloatingActionButton(
         onPressed: () => context.push('/assistant'),
-        icon: const Icon(Icons.smart_toy_rounded),
-        label: const Text('المساعد الذكي'),
+        tooltip: 'المساعد الذكي',
+        child: const Icon(Icons.smart_toy_rounded),
       ),
       body: RefreshIndicator(
         onRefresh: () async => ref.refresh(dashboardProvider.future),
-        child: data.when(
-          loading: () => const LoadingView(),
-          error: (e, _) => ErrorView(
-            error: e,
-            onRetry: () => ref.invalidate(dashboardProvider),
-          ),
-          data: (DashboardData d) => ListView(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+          children: [
+            _SectionGrid(theme: theme),
+            const SizedBox(height: 20),
+            Text(
+              'حضور اليوم',
+              style: theme.textTheme.titleMedium
+                  ?.copyWith(fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 10),
+            data.when(
+              loading: () => const Padding(
+                padding: EdgeInsets.all(40),
+                child: Center(child: CircularProgressIndicator()),
+              ),
+              error: (e, _) => ErrorView(
+                error: e,
+                onRetry: () => ref.invalidate(dashboardProvider),
+              ),
+              data: (DashboardData d) => Column(
+                children: [
+                  _TodayCard(theme: theme, today: d.today),
+                  const SizedBox(height: 16),
+                  _WeekChart(theme: theme, week: d.week),
+                  const SizedBox(height: 16),
+                  _RisksCard(theme: theme, risks: d.risks),
+                ],
+              ),
+            ),
+            const SizedBox(height: 32),
+            Center(
+              child: Text(
+                'تطوير: رياض سليم © 2026',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.hintColor,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SectionGrid extends StatelessWidget {
+  const _SectionGrid({required this.theme});
+
+  final ThemeData theme;
+
+  @override
+  Widget build(BuildContext context) {
+    final List<_SectionCardData> sections = [
+      _SectionCardData(
+        title: 'الموظفون',
+        subtitle: 'إدارة الموظفين وتفاصيلهم',
+        icon: Icons.badge_rounded,
+        color: const Color(0xFF0EA5E9),
+        onTap: () => _openStaff(context, StaffCategory.employee),
+      ),
+      _SectionCardData(
+        title: 'العمال',
+        subtitle: 'إدارة العمال وحضورهم',
+        icon: Icons.engineering_rounded,
+        color: const Color(0xFFF59E0B),
+        onTap: () => _openStaff(context, StaffCategory.worker),
+      ),
+      _SectionCardData(
+        title: 'الإحصائيات',
+        subtitle: 'تقارير شاملة وتحليلات',
+        icon: Icons.query_stats_rounded,
+        color: const Color(0xFF8B5CF6),
+        onTap: () => context.go('/reports'),
+      ),
+      _SectionCardData(
+        title: 'الطلاب',
+        subtitle: 'إدارة الطلاب والصفوف والحضور',
+        icon: Icons.school_rounded,
+        color: const Color(0xFF16A34A),
+        onTap: () => context.go('/students'),
+      ),
+    ];
+
+    return GridView.count(
+      crossAxisCount: 2,
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      mainAxisSpacing: 12,
+      crossAxisSpacing: 12,
+      childAspectRatio: 1.35,
+      children: sections
+          .map((s) => _SectionCard(theme: theme, data: s))
+          .toList(),
+    );
+  }
+
+  void _openStaff(BuildContext context, StaffCategory category) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => StaffScreen(category: category),
+      ),
+    );
+  }
+}
+
+class _SectionCardData {
+  const _SectionCardData({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.color,
+    required this.onTap,
+  });
+
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final Color color;
+  final VoidCallback onTap;
+}
+
+class _SectionCard extends StatelessWidget {
+  const _SectionCard({required this.theme, required this.data});
+
+  final ThemeData theme;
+  final _SectionCardData data;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: InkWell(
+        onTap: data.onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              _TodayCard(theme: theme, today: d.today),
-              const SizedBox(height: 16),
-              _WeekChart(theme: theme, week: d.week),
-              const SizedBox(height: 16),
-              _RisksCard(theme: theme, risks: d.risks),
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: data.color.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(13),
+                ),
+                child: Icon(data.icon, color: data.color, size: 24),
+              ),
+              const Spacer(),
+              Text(
+                data.title,
+                style: theme.textTheme.titleMedium
+                    ?.copyWith(fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                data.subtitle,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.hintColor,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
             ],
           ),
         ),
@@ -122,7 +274,7 @@ class _TodayCard extends StatelessWidget {
               children: [
                 Icon(Icons.today_rounded, color: theme.colorScheme.primary),
                 const SizedBox(width: 8),
-                Text('حضور اليوم',
+                Text('الطلاب',
                     style: theme.textTheme.titleMedium
                         ?.copyWith(fontWeight: FontWeight.w700)),
                 const Spacer(),
@@ -276,6 +428,10 @@ class _RisksCard extends StatelessWidget {
                   child: Text('طلاب يحتاجون متابعة (30 يوم)',
                       style: theme.textTheme.titleMedium
                           ?.copyWith(fontWeight: FontWeight.w700)),
+                ),
+                TextButton(
+                  onPressed: () => context.push('/absentees'),
+                  child: const Text('غائبين اليوم'),
                 ),
               ],
             ),

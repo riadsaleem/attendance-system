@@ -15,6 +15,7 @@ import '../../students/domain/models.dart';
 import '../../students/providers/students_providers.dart';
 import '../data/reports_repository.dart';
 import '../domain/report_models.dart';
+import '../services/excel_service.dart';
 import '../services/pdf_service.dart';
 
 class ReportsScreen extends ConsumerStatefulWidget {
@@ -28,30 +29,64 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
   ReportType _type = ReportType.daily;
   int? _classId;
   DateTime _anchor = DateTime.now();
+  DateTime _from = DateTime.now();
+  DateTime _to = DateTime.now();
   bool _loading = false;
-  ReportData? _report;
+  bool _splitClasses = true;
+  List<ReportData>? _reports;
 
   ReportsRepository get _repo =>
       ReportsRepository(ref.read(supabaseClientProvider));
 
-  String _periodLabel() => switch (_type) {
-        ReportType.daily =>
-          DateFormat('d MMMM yyyy', 'ar').format(_anchor),
-        ReportType.monthly => DateFormat('MMMM yyyy', 'ar').format(_anchor),
-        ReportType.weekly => 'الأسبوع الحالي (${DateFormat('d MMM', 'ar').format(_anchor)})',
-      };
+  String _periodLabel() {
+    if (_type == ReportType.custom) {
+      return '${DateFormat('d MMM', 'ar').format(_from)} - ${DateFormat('d MMM', 'ar').format(_to)}';
+    }
+    if (_type == ReportType.monthly) {
+      return DateFormat('MMMM yyyy', 'ar').format(_anchor);
+    }
+    if (_type == ReportType.weekly) {
+      return 'الأسبوع (${DateFormat('d MMM', 'ar').format(_anchor)})';
+    }
+    return DateFormat('d MMMM yyyy', 'ar').format(_anchor);
+  }
 
-  Future<void> _pickPeriod() async {
+  (DateTime, DateTime) _resolveDates() {
+    switch (_type) {
+      case ReportType.daily:
+        return (_anchor, _anchor);
+      case ReportType.weekly:
+        final int daysFromSaturday = (_anchor.weekday + 1) % 7;
+        final DateTime from = _anchor.subtract(Duration(days: daysFromSaturday));
+        return (from, from.add(const Duration(days: 6)));
+      case ReportType.monthly:
+        return (
+          DateTime(_anchor.year, _anchor.month, 1),
+          DateTime(_anchor.year, _anchor.month + 1, 0)
+        );
+      case ReportType.custom:
+        final DateTime from = DateTime(_from.year, _from.month, _from.day);
+        final DateTime to = DateTime(_to.year, _to.month, _to.day, 23, 59);
+        return (from, to);
+    }
+  }
+
+  Future<void> _pickDate({required bool isFrom}) async {
     final DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: _anchor,
+      initialDate: isFrom ? _from : _to,
       firstDate: DateTime.now().subtract(const Duration(days: 365)),
       lastDate: DateTime.now(),
     );
     if (picked != null) {
       setState(() {
-        _anchor = picked;
-        _report = null;
+        if (isFrom) {
+          _from = picked;
+          if (_to.isBefore(_from)) _to = _from;
+        } else {
+          _to = picked;
+        }
+        _reports = null;
       });
     }
   }
@@ -59,18 +94,32 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
   Future<void> _generate() async {
     setState(() => _loading = true);
     try {
-      final classes = ref.read(classesProvider).valueOrNull ?? const [];
+      final classes = ref.read(classesProvider).valueOrNull ?? [];
       final String className = _classId == null
           ? 'كل الصفوف'
           : classes.firstWhere((c) => c.id == _classId).displayName;
+      final (DateTime from, DateTime to) = _resolveDates();
+      final String periodLabel = _periodLabel();
 
-      final ReportData report = await _repo.buildReport(
-        type: _type,
-        anchor: _anchor,
-        classId: _classId,
-        className: className,
-      );
-      setState(() => _report = report);
+      if (_classId == null && _splitClasses) {
+        _reports = await _repo.buildPerClassReports(
+          type: _type,
+          from: from,
+          to: to,
+          periodLabel: periodLabel,
+        );
+      } else {
+        final ReportData report = await _repo.buildReportForRange(
+          type: _type,
+          from: from,
+          to: to,
+          periodLabel: periodLabel,
+          classId: _classId,
+          className: className,
+        );
+        _reports = [report];
+      }
+      setState(() {});
     } catch (_) {
       if (mounted) {
         showAppSnackBar(context, 'تعذر إنشاء التقرير', isError: true);
@@ -80,20 +129,21 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
     }
   }
 
-  Future<void> _exportPdf(ReportData report) async {
+  Future<void> _exportPdf() async {
+    final List<ReportData> reports = _reports ?? [];
+    if (reports.isEmpty) return;
     showLoadingDialog(context);
     try {
-      final Uint8List bytes = await PdfService.generate(report);
+      final bytes = await PdfService.generateMulti(reports);
       final Directory dir = await getTemporaryDirectory();
-      final String stamp = DateFormat('yyyyMMdd_HHmm').format(DateTime.now());
-      final File file = File('${dir.path}/تقرير_$stamp.pdf');
+      final File file =
+          File('${dir.path}/تقرير_${ExcelService.fileNameStamp()}.pdf');
       await file.writeAsBytes(bytes);
       if (mounted) hideLoadingDialog(context);
 
       await Share.shareXFiles(
         [XFile(file.path)],
-        text: report.titleAr,
-        subject: report.titleAr,
+        subject: reports.first.titleAr,
       );
     } catch (_) {
       if (mounted) {
@@ -103,15 +153,45 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
     }
   }
 
-  Future<void> _shareText(ReportData report) async {
-    await Share.share(report.textSummary, subject: report.titleAr);
+  Future<void> _exportExcel() async {
+    final List<ReportData> reports = _reports ?? [];
+    if (reports.isEmpty) return;
+    showLoadingDialog(context);
+    try {
+      final bytes = ExcelService.generate(reports);
+      final Directory dir = await getTemporaryDirectory();
+      final File file =
+          File('${dir.path}/تقرير_${ExcelService.fileNameStamp()}.xlsx');
+      await file.writeAsBytes(bytes);
+      if (mounted) hideLoadingDialog(context);
+
+      await Share.shareXFiles(
+        [XFile(file.path)],
+        subject: 'تقرير Excel',
+      );
+    } catch (_) {
+      if (mounted) {
+        hideLoadingDialog(context);
+        showAppSnackBar(context, 'تعذر إنشاء ملف Excel', isError: true);
+      }
+    }
   }
 
-  Future<void> _copyText(ReportData report) async {
-    await Clipboard.setData(ClipboardData(text: report.textSummary));
-    if (mounted) {
-      showAppSnackBar(context, 'تم نسخ ملخص التقرير');
-    }
+  Future<void> _shareText() async {
+    final List<ReportData> reports = _reports ?? [];
+    if (reports.isEmpty) return;
+    final String text =
+        reports.map((r) => r.textSummary).join('\n──────────────\n');
+    await Share.share(text, subject: reports.first.titleAr);
+  }
+
+  Future<void> _copyText() async {
+    final List<ReportData> reports = _reports ?? [];
+    if (reports.isEmpty) return;
+    final String text =
+        reports.map((r) => r.textSummary).join('\n──────────────\n');
+    await Clipboard.setData(ClipboardData(text: text));
+    if (mounted) showAppSnackBar(context, 'تم نسخ التقرير');
   }
 
   @override
@@ -132,18 +212,15 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
           children: [
             SegmentedButton<ReportType>(
               segments: ReportType.values
-                  .map((t) => ButtonSegment(
-                        value: t,
-                        label: Text(t.labelAr),
-                      ))
+                  .map((t) => ButtonSegment(value: t, label: Text(t.labelAr)))
                   .toList(),
               selected: {_type},
               onSelectionChanged: (s) => setState(() {
                 _type = s.first;
-                _report = null;
+                _reports = null;
               }),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 14),
             DropdownButtonFormField<int?>(
               value: _classId,
               isExpanded: true,
@@ -161,16 +238,54 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
               ],
               onChanged: (v) => setState(() {
                 _classId = v;
-                _report = null;
+                _reports = null;
               }),
             ),
             const SizedBox(height: 12),
-            OutlinedButton.icon(
-              onPressed: _pickPeriod,
-              icon: const Icon(Icons.date_range_rounded),
-              label: Text(_periodLabel()),
-            ),
-            const SizedBox(height: 16),
+            if (_type == ReportType.custom) ...[
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => _pickDate(isFrom: true),
+                      icon: const Icon(Icons.date_range_rounded, size: 18),
+                      label: Text(DateFormat('d MMM', 'ar').format(_from)),
+                    ),
+                  ),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 8),
+                    child: Text('إلى'),
+                  ),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => _pickDate(isFrom: false),
+                      icon: const Icon(Icons.date_range_rounded, size: 18),
+                      label: Text(DateFormat('d MMM', 'ar').format(_to)),
+                    ),
+                  ),
+                ],
+              ),
+            ] else
+              OutlinedButton.icon(
+                onPressed: () async {
+                  final DateTime? picked = await showDatePicker(
+                    context: context,
+                    initialDate: _anchor,
+                    firstDate:
+                        DateTime.now().subtract(const Duration(days: 365)),
+                    lastDate: DateTime.now(),
+                  );
+                  if (picked != null) {
+                    setState(() {
+                      _anchor = picked;
+                      _reports = null;
+                    });
+                  }
+                },
+                icon: const Icon(Icons.date_range_rounded),
+                label: Text(_periodLabel()),
+              ),
+            const SizedBox(height: 14),
             FilledButton.icon(
               onPressed: _loading ? null : _generate,
               icon: _loading
@@ -184,22 +299,47 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
               label: const Text('إنشاء التقرير'),
             ),
             const SizedBox(height: 20),
-            if (_report != null) ...[
-              _ReportPreview(theme: theme, report: _report!),
-              const SizedBox(height: 16),
+            if (_reports != null) ...[
+              ..._reports!.map(
+                (r) => Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: _ReportPreview(theme: theme, report: r),
+                ),
+              ),
+              const SizedBox(height: 6),
+              if (_classId == null && _reports!.length > 1)
+                CheckboxListTile(
+                  value: _splitClasses,
+                  onChanged: (v) => setState(() => _splitClasses = v ?? true),
+                  title: const Text('كل فصل في صفحة مستقلة'),
+                  controlAffinity: ListTileControlAffinity.leading,
+                  contentPadding: EdgeInsets.zero,
+                ),
               Row(
                 children: [
                   Expanded(
                     child: FilledButton.icon(
-                      onPressed: () => _exportPdf(_report!),
+                      onPressed: _exportPdf,
                       icon: const Icon(Icons.picture_as_pdf_rounded),
                       label: const Text('PDF'),
                     ),
                   ),
                   const SizedBox(width: 8),
                   Expanded(
+                    child: FilledButton.tonalIcon(
+                      onPressed: _exportExcel,
+                      icon: const Icon(Icons.table_view_rounded),
+                      label: const Text('Excel'),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
                     child: OutlinedButton.icon(
-                      onPressed: () => _shareText(_report!),
+                      onPressed: _shareText,
                       icon: const Icon(Icons.share_rounded),
                       label: const Text('مشاركة'),
                     ),
@@ -207,7 +347,7 @@ class _ReportsScreenState extends ConsumerState<ReportsScreen> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: OutlinedButton.icon(
-                      onPressed: () => _copyText(_report!),
+                      onPressed: _copyText,
                       icon: const Icon(Icons.copy_rounded),
                       label: const Text('نسخ'),
                     ),
@@ -232,7 +372,7 @@ class _ReportPreview extends StatelessWidget {
   Widget build(BuildContext context) {
     Widget stat(String label, String value, Color color) => Expanded(
           child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 12),
+            padding: const EdgeInsets.symmetric(vertical: 10),
             margin: const EdgeInsets.symmetric(horizontal: 3),
             decoration: BoxDecoration(
               color: color.withOpacity(0.12),
@@ -243,11 +383,10 @@ class _ReportPreview extends StatelessWidget {
                 Text(value,
                     style: TextStyle(
                         color: color,
-                        fontSize: 18,
+                        fontSize: 16,
                         fontWeight: FontWeight.w700)),
                 const SizedBox(height: 2),
-                Text(label,
-                    style: TextStyle(color: color, fontSize: 12)),
+                Text(label, style: TextStyle(color: color, fontSize: 11)),
               ],
             ),
           ),
@@ -255,31 +394,31 @@ class _ReportPreview extends StatelessWidget {
 
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
                 Icon(Icons.assessment_rounded,
-                    color: theme.colorScheme.primary),
+                    color: theme.colorScheme.primary, size: 20),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    report.titleAr,
-                    style: theme.textTheme.titleMedium
+                    '${report.titleAr} — ${report.className}',
+                    style: theme.textTheme.titleSmall
                         ?.copyWith(fontWeight: FontWeight.w700),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 2),
             Text(
-              '${report.className} — ${report.periodLabel}',
+              report.periodLabel,
               style: theme.textTheme.bodySmall
                   ?.copyWith(color: theme.hintColor),
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 12),
             Row(
               children: [
                 stat('حاضر', '${report.summary.present}',
@@ -295,44 +434,6 @@ class _ReportPreview extends StatelessWidget {
                 ),
               ],
             ),
-            if (report.rows.isNotEmpty) ...[
-              const SizedBox(height: 14),
-              ...report.rows.take(10).map(
-                    (row) => Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 4),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              row.studentName,
-                              style: const TextStyle(fontSize: 13),
-                            ),
-                          ),
-                          Text(
-                            '${row.present} حاضر',
-                            style: const TextStyle(
-                                fontSize: 12, color: Color(0xFF16A34A)),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            '${row.absent} غائب',
-                            style: const TextStyle(
-                                fontSize: 12, color: Color(0xFFDC2626)),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-              if (report.rows.length > 10)
-                Padding(
-                  padding: const EdgeInsets.only(top: 6),
-                  child: Text(
-                    '+ ${report.rows.length - 10} طالب آخرين (التفاصيل في PDF)',
-                    style: theme.textTheme.bodySmall
-                        ?.copyWith(color: theme.hintColor),
-                  ),
-                ),
-            ],
           ],
         ),
       ),

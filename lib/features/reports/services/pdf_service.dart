@@ -17,29 +17,35 @@ class PdfService {
         pw.Font.ttf(await rootBundle.load('assets/fonts/Tajawal-Bold.ttf'));
   }
 
-  static Future<Uint8List> generate(ReportData data) async {
+  static Future<Uint8List> generate(ReportData data) {
+    return generateMulti([data]);
+  }
+
+  static Future<Uint8List> generateMulti(List<ReportData> reports) async {
     await _loadFonts();
     final pw.Font regular = _regular!;
     final pw.Font bold = _bold!;
 
     final pw.Document doc = pw.Document();
 
-    doc.addPage(
-      pw.MultiPage(
-        pageFormat: PdfPageFormat.a4,
-        textDirection: pw.TextDirection.rtl,
-        margin: const pw.EdgeInsets.all(32),
-        build: (context) => [
-          _header(data, bold, regular),
-          pw.SizedBox(height: 16),
-          _summaryCards(data, bold, regular),
-          pw.SizedBox(height: 16),
-          _studentsTable(data, bold, regular),
-          pw.SizedBox(height: 12),
-          _footer(regular),
-        ],
-      ),
-    );
+    for (final ReportData data in reports) {
+      doc.addPage(
+        pw.MultiPage(
+          pageFormat: PdfPageFormat.a4,
+          textDirection: pw.TextDirection.rtl,
+          margin: const pw.EdgeInsets.all(32),
+          build: (context) => [
+            _header(data, bold, regular),
+            pw.SizedBox(height: 16),
+            _summaryCards(data, bold, regular),
+            pw.SizedBox(height: 16),
+            _studentsTable(data, bold, regular),
+            pw.SizedBox(height: 12),
+            _footer(regular),
+          ],
+        ),
+      );
+    }
 
     return doc.save();
   }

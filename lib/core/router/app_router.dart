@@ -5,6 +5,7 @@ import '../../features/assistant/presentation/assistant_screen.dart';
 import '../../features/auth/presentation/login_screen.dart';
 import '../../features/auth/presentation/register_screen.dart';
 import '../../features/auth/providers/auth_providers.dart';
+import '../../features/attendance/presentation/absentees_screen.dart';
 import '../../features/attendance/presentation/attendance_screen.dart';
 import '../../features/dashboard/presentation/dashboard_screen.dart';
 import '../../features/home/presentation/main_shell.dart';
@@ -40,6 +41,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AssistantScreen.routePath,
         builder: (context, state) => const AssistantScreen(),
+      ),
+      GoRoute(
+        path: AbsenteesScreen.routePath,
+        builder: (context, state) => const AbsenteesScreen(),
       ),
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) =>

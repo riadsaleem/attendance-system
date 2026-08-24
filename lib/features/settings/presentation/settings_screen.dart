@@ -139,10 +139,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
           const SizedBox(height: 24),
           Center(
-            child: Text(
-              '${AppConfig.appName} • الإصدار 1.0.0',
-              style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.hintColor),
+            child: Column(
+              children: [
+                Text(
+                  '${AppConfig.appName} • الإصدار 1.0.0',
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(color: theme.hintColor),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'تطوير: رياض سليم © 2026',
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(color: theme.hintColor),
+                ),
+              ],
             ),
           ),
         ],

@@ -17,11 +17,28 @@ class ReportsRepository {
     required DateTime anchor,
     int? classId,
     required String className,
+  }) {
+    final (DateTime from, DateTime to, String periodLabel) =
+        _resolvePeriod(type, anchor);
+    return buildReportForRange(
+      type: type,
+      from: from,
+      to: to,
+      periodLabel: periodLabel,
+      classId: classId,
+      className: className,
+    );
+  }
+
+  Future<ReportData> buildReportForRange({
+    required ReportType type,
+    required DateTime from,
+    required DateTime to,
+    required String periodLabel,
+    int? classId,
+    required String className,
   }) =>
       supabaseRetry(() async {
-        final (DateTime from, DateTime to, String periodLabel) =
-            _resolvePeriod(type, anchor);
-
         var query = _client
             .from('attendance_logs')
             .select(_select)
@@ -32,6 +49,52 @@ class ReportsRepository {
         }
         final rows = await query.order('attendance_date');
 
+        return _aggregate(
+          rows: rows,
+          type: type,
+          className: className,
+          periodLabel: periodLabel,
+        );
+      });
+
+  Future<List<ReportData>> buildPerClassReports({
+    required ReportType type,
+    required DateTime from,
+    required DateTime to,
+    required String periodLabel,
+  }) async {
+    final classes = await supabaseRetry(() => _client
+        .from('classes')
+        .select('id, name, grades(name)')
+        .order('grade_id')
+        .order('name'));
+
+    final List<ReportData> reports = [];
+    for (final Map<String, dynamic> c in classes) {
+      final String gradeName =
+          ((c['grades'] as Map<String, dynamic>?)?['name'] ?? '') as String;
+      final String className = gradeName.isEmpty
+          ? c['name'] as String
+          : '$gradeName - ${c['name']}';
+      final ReportData report = await buildReportForRange(
+        type: type,
+        from: from,
+        to: to,
+        periodLabel: periodLabel,
+        classId: c['id'] as int,
+        className: className,
+      );
+      if (report.rows.isNotEmpty) reports.add(report);
+    }
+    return reports;
+  }
+
+  ReportData _aggregate({
+    required List<Map<String, dynamic>> rows,
+    required ReportType type,
+    required String className,
+    required String periodLabel,
+  }) {
     final Map<String, List<int>> perStudent = {};
     for (final Map<String, dynamic> row in rows) {
       final String status = (row['status'] ?? 'absent') as String;
@@ -69,7 +132,7 @@ class ReportsRepository {
       summary: ReportSummary(present: present, late: late, absent: absent),
       rows: studentRows,
     );
-      });
+  }
 
   (DateTime, DateTime, String) _resolvePeriod(
       ReportType type, DateTime anchor) {
@@ -93,6 +156,8 @@ class ReportsRepository {
         final DateTime from = DateTime(anchor.year, anchor.month, 1);
         final DateTime to = DateTime(anchor.year, anchor.month + 1, 0);
         return (from, to, monthFormat.format(anchor));
+      case ReportType.custom:
+        return (anchor, anchor, dayFormat.format(anchor));
     }
   }
 }

@@ -1,10 +1,11 @@
-enum ReportType { daily, weekly, monthly }
+enum ReportType { daily, weekly, monthly, custom }
 
 extension ReportTypeX on ReportType {
   String get labelAr => switch (this) {
         ReportType.daily => 'يومي',
         ReportType.weekly => 'أسبوعي',
         ReportType.monthly => 'شهري',
+        ReportType.custom => 'مخصص',
       };
 }
 
@@ -59,6 +60,7 @@ class ReportData {
         ReportType.daily => 'تقرير الحضور اليومي',
         ReportType.weekly => 'تقرير الحضور الأسبوعي',
         ReportType.monthly => 'تقرير الحضور الشهري',
+        ReportType.custom => 'تقرير الحضور',
       };
 
   String get textSummary {
