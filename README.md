@@ -1,16 +1,84 @@
-# attendance_system
+# 📋 نظام الحضور والغياب
 
-A new Flutter project.
+تطبيق موبايل احترافي لإدارة حضور وغياب الطلاب — مبني بـ **Flutter** ومدعوم بـ **Supabase**.
 
-## Getting Started
+| | |
+|---|---|
+| **المنصة** | Android (iOS جاهز بالكود أيضاً) |
+| **الواجهة** | Flutter 3 + Material 3 + دعم RTL كامل |
+| **قاعدة البيانات** | Supabase (PostgreSQL + Auth + RLS) |
+| **إدارة الحالة** | Riverpod |
+| **اللغة** | عربي بالكامل |
 
-This project is a starting point for a Flutter application.
+---
 
-A few resources to get you started if this is your first Flutter project:
+## ✨ المميزات
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+- 🔐 **تسجيل دخول آمن** مع أدوار وصلاحيات (مدير / معلم / مشاهد)
+- 👥 **إدارة الطلاب**: إضافة، تعديل، حذف، بحث، وفلترة حسب الصف
+- 🏫 **إدارة المراحل والصفوف**
+- ✅ **تسجيل الحضور اليومي**: حاضر / متأخر / غائب بضغطة واحدة
+- ⚡ **إجراءات سريعة**: تعليم الكل حاضر + الغائبين تلقائياً
+- 📊 **Dashboard**: إحصائيات اليوم + رسم بياني لآخر 7 أيام
+- 🤖 **مساعد ذكي**: chatbot عربي يجاوب على أسئلتك عن الحضور + **توقع خطر الغياب** لكل طالب
+- 📄 **تقارير PDF عربية**: يومي / أسبوعي / شهري
+- 📤 **مشاركة عبر واتساب** أو أي تطبيق آخر + نسخ نصي
+- 🌙 **وضع ليلي** مع حفظ التفضيل
+- 🔔 بيانات تجريبية جاهزة للتجربة الفورية
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+## 🔒 الأمان
+
+- **RLS (Row Level Security)** مفعّل على جميع الجداول — الحماية على مستوى قاعدة البيانات
+- كلمات المرور مشفرة (bcrypt عبر Supabase Auth)
+- جلسات محفوظة في التخزين الآمن (flutter_secure_storage)
+- أول حساب يُنشأ في النظام يحصل تلقائياً على صلاحية **مدير**
+- تغيير الصلاحيات متاح للمدير فقط (محمي بـ trigger على قاعدة البيانات)
+
+## 🚀 التشغيل
+
+```bash
+flutter pub get
+flutter run
+```
+
+### إعداد Supabase
+1. أنشئ مشروعاً في [supabase.com](https://supabase.com)
+2. نفّذ ملف `supabase/schema.sql` من SQL Editor
+3. ضع رابط المشروع والمفتاح في `lib/core/config/app_config.dart`
+
+### بناء نسخة التوزيع
+```bash
+flutter build apk --release
+# الناتج: build/app/outputs/flutter-apk/app-release.apk
+```
+
+> ⚠️ **مهم:** احتفظ بنسخة من `android/app/upload-keystore.jks` و`android/key.properties` —
+> فقدانهما يعني عدم القدرة على تحديث التطبيق بنفس التوقيع.
+
+## 🗂️ هيكل المشروع
+
+```
+lib/
+├── core/            # الثيم، الراوتر، الإعدادات، العناصر المشتركة
+├── features/
+│   ├── auth/        # تسجيل الدخول والأدوار
+│   ├── dashboard/   # الإحصائيات والرسوم البيانية
+│   ├── students/    # إدارة الطلاب والصفوف
+│   ├── attendance/  # تسجيل الحضور
+│   ├── reports/     # التقارير + PDF
+│   ├── assistant/   # المساعد الذكي
+│   └── settings/    # الإعدادات
+supabase/
+└── schema.sql       # جداول قاعدة البيانات + الصلاحيات + بيانات تجريبية
+```
+
+## 🧪 الاختبارات
+
+```bash
+flutter test
+flutter analyze
+```
+
+## 📄 الرخصة
+
+مشروع شخصي — © 2026 رياض سالم القبوب
