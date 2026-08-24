@@ -233,8 +233,9 @@ class _StudentCard extends StatelessWidget {
           style: const TextStyle(fontWeight: FontWeight.w600),
         ),
         subtitle: Text(
-          '${student.gradeName} - ${student.className}'
-          '${student.guardianPhone != null ? '\nولي الأمر: ${student.guardianPhone}' : ''}',
+          '${student.className}'
+          '${student.section != null ? ' - شعبة ${student.section}' : ''}'
+          '${student.guardianPhone != null ? '\nولي الأمر: ${student.guardianName} (${student.guardianPhone})' : ''}',
         ),
         isThreeLine: student.guardianPhone != null,
         trailing: isAdmin

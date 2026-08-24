@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/constants/app_constants.dart';
@@ -238,6 +239,32 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen> {
           _edits.clear();
         });
         showAppSnackBar(context, 'تم حفظ الحضور بنجاح ✅');
+
+        final int absentCount =
+            entries.where((e) => e.status == AttendanceStatus.absent).length;
+        if (absentCount > 0 && mounted) {
+          final bool? notify = await showDialog<bool>(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text('إبلاغ أولياء الأمور 📨'),
+              content: Text(
+                  'يوجد $absentCount غائباً اليوم.\nهل تريد فتح قائمة الغائبين لإرسال إشعار لولي أمر كل طالب؟'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context, false),
+                  child: const Text('لاحقاً'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  child: const Text('إبلاغ الآن'),
+                ),
+              ],
+            ),
+          );
+          if (notify == true && mounted) {
+            context.push('/absentees');
+          }
+        }
       }
     } catch (_) {
       if (mounted) {

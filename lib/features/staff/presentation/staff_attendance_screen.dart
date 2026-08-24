@@ -7,6 +7,7 @@ import '../../../core/widgets/app_snack_bar.dart';
 import '../../../core/widgets/state_views.dart';
 import '../domain/staff_models.dart';
 import '../providers/staff_providers.dart';
+import 'staff_hours_report_screen.dart';
 
 class StaffAttendanceScreen extends ConsumerStatefulWidget {
   const StaffAttendanceScreen({super.key, required this.category});
@@ -21,6 +22,8 @@ class StaffAttendanceScreen extends ConsumerStatefulWidget {
 class _StaffAttendanceScreenState extends ConsumerState<StaffAttendanceScreen> {
   DateTime _date = DateTime.now();
   final Map<int, AttendanceMark?> _edits = {};
+  final Map<int, DateTime?> _checkIns = {};
+  final Map<int, DateTime?> _checkOuts = {};
   bool _saving = false;
 
   AutoDisposeFutureProvider<List<Staff>> get _provider =>
@@ -38,6 +41,15 @@ class _StaffAttendanceScreenState extends ConsumerState<StaffAttendanceScreen> {
       appBar: AppBar(
         title: Text('حضور ${widget.category.pluralAr}'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.schedule_rounded),
+            tooltip: 'تقرير الساعات',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => StaffHoursReportScreen(category: widget.category),
+              ),
+            ),
+          ),
           TextButton.icon(
             onPressed: _pickDate,
             icon: const Icon(Icons.calendar_month_rounded),
@@ -61,16 +73,25 @@ class _StaffAttendanceScreenState extends ConsumerState<StaffAttendanceScreen> {
           }
 
           final savedMarks = marks.valueOrNull ?? {};
-          final entries = list
-              .map((s) => StaffAttendanceEntry(
-                    staff: s,
-                    status: _edits.containsKey(s.id)
-                        ? _edits[s.id]
-                        : savedMarks[s.id] == null
-                            ? null
-                            : AttendanceMark.fromDb(savedMarks[s.id]),
-                  ))
-              .toList();
+          final entries = list.map((s) {
+            final saved = savedMarks[s.id];
+            return StaffAttendanceEntry(
+              staff: s,
+              status: _edits.containsKey(s.id)
+                  ? _edits[s.id]
+                  : saved == null
+                      ? null
+                      : AttendanceMark.fromDb(saved['status'] as String?),
+              checkIn: _checkIns[s.id] ??
+                  (saved?['check_in_time'] == null
+                      ? null
+                      : DateTime.parse(saved!['check_in_time'] as String)),
+              checkOut: _checkOuts[s.id] ??
+                  (saved?['check_out_time'] == null
+                      ? null
+                      : DateTime.parse(saved!['check_out_time'] as String)),
+            );
+          }).toList();
 
           int present = 0, late = 0, absent = 0, unmarked = 0;
           for (final e in entries) {
@@ -129,8 +150,7 @@ class _StaffAttendanceScreenState extends ConsumerState<StaffAttendanceScreen> {
                         ),
                         onPressed: () => setState(() {
                           for (final e in entries) {
-                            if (_edits[e.staff.id] == null &&
-                                !e.isMarked) {
+                            if (_edits[e.staff.id] == null && !e.isMarked) {
                               _edits[e.staff.id] = AttendanceMark.absent;
                             }
                           }
@@ -152,8 +172,16 @@ class _StaffAttendanceScreenState extends ConsumerState<StaffAttendanceScreen> {
                     return _StaffRow(
                       theme: theme,
                       entry: entry,
-                      onChanged: (status) =>
+                      date: _date,
+                      onStatus: (status) =>
                           setState(() => _edits[entry.staff.id] = status),
+                      onTime: (isIn, time) => setState(() {
+                        if (isIn) {
+                          _checkIns[entry.staff.id] = time;
+                        } else {
+                          _checkOuts[entry.staff.id] = time;
+                        }
+                      }),
                     );
                   },
                 ),
@@ -191,9 +219,7 @@ class _StaffAttendanceScreenState extends ConsumerState<StaffAttendanceScreen> {
           children: [
             Text('$count',
                 style: TextStyle(
-                    color: color,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 15)),
+                    color: color, fontWeight: FontWeight.w700, fontSize: 15)),
             const SizedBox(width: 6),
             Text(label, style: TextStyle(color: color, fontSize: 13)),
           ],
@@ -211,6 +237,8 @@ class _StaffAttendanceScreenState extends ConsumerState<StaffAttendanceScreen> {
       setState(() {
         _date = picked;
         _edits.clear();
+        _checkIns.clear();
+        _checkOuts.clear();
       });
     }
   }
@@ -223,17 +251,25 @@ class _StaffAttendanceScreenState extends ConsumerState<StaffAttendanceScreen> {
       final savedMarks =
           ref.read(staffMarksForDateProvider(_date)).valueOrNull ?? {};
 
-      final entries = list
-          .map((s) => StaffAttendanceEntry(
-                staff: s,
-                status: _edits.containsKey(s.id)
-                    ? _edits[s.id]
-                    : savedMarks[s.id] == null
-                        ? null
-                        : AttendanceMark.fromDb(savedMarks[s.id]),
-              ))
-          .where((e) => e.isMarked)
-          .toList();
+      final entries = list.map((s) {
+        final saved = savedMarks[s.id];
+        return StaffAttendanceEntry(
+          staff: s,
+          status: _edits.containsKey(s.id)
+              ? _edits[s.id]
+              : saved == null
+                  ? null
+                  : AttendanceMark.fromDb(saved['status'] as String?),
+          checkIn: _checkIns[s.id] ??
+              (saved?['check_in_time'] == null
+                  ? null
+                  : DateTime.parse(saved!['check_in_time'] as String)),
+          checkOut: _checkOuts[s.id] ??
+              (saved?['check_out_time'] == null
+                  ? null
+                  : DateTime.parse(saved!['check_out_time'] as String)),
+        );
+      }).where((e) => e.isMarked).toList();
 
       await ref.read(staffRepositoryProvider).upsertAttendance(
             entries: entries,
@@ -262,12 +298,16 @@ class _StaffRow extends StatelessWidget {
   const _StaffRow({
     required this.theme,
     required this.entry,
-    required this.onChanged,
+    required this.date,
+    required this.onStatus,
+    required this.onTime,
   });
 
   final ThemeData theme;
   final StaffAttendanceEntry entry;
-  final ValueChanged<AttendanceMark?> onChanged;
+  final DateTime date;
+  final ValueChanged<AttendanceMark?> onStatus;
+  final void Function(bool isIn, DateTime? time) onTime;
 
   Color get _statusColor => switch (entry.status) {
         AttendanceMark.present => const Color(0xFF16A34A),
@@ -276,62 +316,149 @@ class _StaffRow extends StatelessWidget {
         null => theme.hintColor,
       };
 
+  Future<void> _pickTime(BuildContext context, bool isIn) async {
+    final TimeOfDay? picked = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(
+        (isIn ? entry.checkIn : entry.checkOut) ?? DateTime.now(),
+      ),
+    );
+    if (picked == null) return;
+    onTime(
+      isIn,
+      DateTime(date.year, date.month, date.day, picked.hour, picked.minute),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final bool showTimes = entry.status != AttendanceMark.absent;
+
     return Card(
       color: entry.status == null ? null : _statusColor.withOpacity(0.05),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
-        child: Row(
+        child: Column(
           children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    entry.staff.fullName,
-                    style: const TextStyle(
-                        fontWeight: FontWeight.w600, fontSize: 15),
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        entry.staff.fullName,
+                        style: const TextStyle(
+                            fontWeight: FontWeight.w600, fontSize: 15),
+                      ),
+                      if (entry.status != null)
+                        Text(
+                          entry.status!.labelAr,
+                          style: TextStyle(
+                              color: _statusColor,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600),
+                        ),
+                    ],
                   ),
-                  if (entry.status != null)
-                    Text(
-                      entry.status!.labelAr,
-                      style: TextStyle(
-                          color: _statusColor,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600),
+                ),
+                SegmentedButton<AttendanceMark>(
+                  showSelectedIcon: false,
+                  style: SegmentedButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                    selectedForegroundColor: Colors.white,
+                  ),
+                  segments: const [
+                    ButtonSegment(
+                      value: AttendanceMark.present,
+                      icon: Icon(Icons.check_rounded, size: 18),
+                      tooltip: 'حاضر',
                     ),
-                ],
-              ),
-            ),
-            SegmentedButton<AttendanceMark>(
-              showSelectedIcon: false,
-              style: SegmentedButton.styleFrom(
-                visualDensity: VisualDensity.compact,
-                selectedForegroundColor: Colors.white,
-              ),
-              segments: const [
-                ButtonSegment(
-                  value: AttendanceMark.present,
-                  icon: Icon(Icons.check_rounded, size: 18),
-                  tooltip: 'حاضر',
-                ),
-                ButtonSegment(
-                  value: AttendanceMark.late,
-                  icon: Icon(Icons.schedule_rounded, size: 18),
-                  tooltip: 'متأخر',
-                ),
-                ButtonSegment(
-                  value: AttendanceMark.absent,
-                  icon: Icon(Icons.close_rounded, size: 18),
-                  tooltip: 'غائب',
+                    ButtonSegment(
+                      value: AttendanceMark.late,
+                      icon: Icon(Icons.schedule_rounded, size: 18),
+                      tooltip: 'متأخر',
+                    ),
+                    ButtonSegment(
+                      value: AttendanceMark.absent,
+                      icon: Icon(Icons.close_rounded, size: 18),
+                      tooltip: 'غائب',
+                    ),
+                  ],
+                  selected: entry.status == null ? {} : {entry.status!},
+                  onSelectionChanged: (selection) {
+                    onStatus(selection.isEmpty ? null : selection.first);
+                  },
                 ),
               ],
-              selected: entry.status == null ? {} : {entry.status!},
-              onSelectionChanged: (selection) {
-                onChanged(selection.isEmpty ? null : selection.first);
-              },
             ),
+            if (showTimes) ...[
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: InkWell(
+                      onTap: () => _pickTime(context, true),
+                      borderRadius: BorderRadius.circular(10),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.surfaceContainerHighest
+                              .withOpacity(0.4),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.login_rounded,
+                                size: 16,
+                                color: theme.colorScheme.primary),
+                            const SizedBox(width: 6),
+                            Text(
+                              entry.checkIn == null
+                                  ? 'وقت الحضور'
+                                  : DateFormat('hh:mm a')
+                                      .format(entry.checkIn!),
+                              style: const TextStyle(fontSize: 13),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: InkWell(
+                      onTap: () => _pickTime(context, false),
+                      borderRadius: BorderRadius.circular(10),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.surfaceContainerHighest
+                              .withOpacity(0.4),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.logout_rounded,
+                                size: 16, color: theme.colorScheme.error),
+                            const SizedBox(width: 6),
+                            Text(
+                              entry.checkOut == null
+                                  ? 'وقت الانصراف'
+                                  : DateFormat('hh:mm a')
+                                      .format(entry.checkOut!),
+                              style: const TextStyle(fontSize: 13),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ],
         ),
       ),

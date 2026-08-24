@@ -86,10 +86,17 @@ class Staff {
 }
 
 class StaffAttendanceEntry {
-  StaffAttendanceEntry({required this.staff, this.status});
+  StaffAttendanceEntry({
+    required this.staff,
+    this.status,
+    this.checkIn,
+    this.checkOut,
+  });
 
   final Staff staff;
   AttendanceMark? status;
+  DateTime? checkIn;
+  DateTime? checkOut;
 
   bool get isMarked => status != null;
 }

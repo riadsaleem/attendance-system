@@ -110,11 +110,11 @@ class _SectionGrid extends StatelessWidget {
         onTap: () => _openStaff(context, StaffCategory.employee),
       ),
       _SectionCardData(
-        title: 'العمال',
-        subtitle: 'إدارة العمال وحضورهم',
-        icon: Icons.engineering_rounded,
+        title: 'الطلاب الجامعين',
+        subtitle: 'قيد الإنشاء',
+        icon: Icons.menu_book_rounded,
         color: const Color(0xFFF59E0B),
-        onTap: () => _openStaff(context, StaffCategory.worker),
+        onTap: () => showUnderConstruction(context),
       ),
       _SectionCardData(
         title: 'الإحصائيات',
@@ -152,6 +152,23 @@ class _SectionGrid extends StatelessWidget {
       ),
     );
   }
+}
+
+void showUnderConstruction(BuildContext context) {
+  showDialog(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text('قيد الإنشاء 🚧'),
+      content: const Text(
+          'قسم الطلاب الجامعين تحت التطوير — سيتم إطلاقه في تحديث قريب.'),
+      actions: [
+        FilledButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('حسناً'),
+        ),
+      ],
+    ),
+  );
 }
 
 class _SectionCardData {

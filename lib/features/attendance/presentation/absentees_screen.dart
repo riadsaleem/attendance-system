@@ -30,8 +30,17 @@ class _Absentee {
   });
 }
 
+class _LateOffender {
+  final String name;
+  final int lateCount;
+
+  const _LateOffender({required this.name, required this.lateCount});
+}
+
 class _AbsenteesScreenState extends ConsumerState<AbsenteesScreen> {
   late final Future<List<_Absentee>> _future;
+  bool _showLate = false;
+  List<_LateOffender>? _lateOffenders;
 
   @override
   void initState() {
@@ -62,6 +71,33 @@ class _AbsenteesScreenState extends ConsumerState<AbsenteesScreen> {
     }).toList();
   }
 
+  Future<List<_LateOffender>> _loadLate() async {
+    if (_lateOffenders != null) return _lateOffenders!;
+    final client = ref.read(supabaseClientProvider);
+    final String from = DateFormat('yyyy-MM-dd')
+        .format(DateTime.now().subtract(const Duration(days: 30)));
+    final rows = await client
+        .from('attendance_logs')
+        .select('students(full_name)')
+        .eq('status', 'late')
+        .gte('attendance_date', from);
+
+    final Map<String, int> counts = {};
+    for (final Map<String, dynamic> row in rows) {
+      final String name =
+          ((row['students'] as Map<String, dynamic>?)?['full_name'] ?? '؟')
+              as String;
+      counts[name] = (counts[name] ?? 0) + 1;
+    }
+    final List<_LateOffender> offenders = counts.entries
+        .where((e) => e.value > 3)
+        .map((e) => _LateOffender(name: e.key, lateCount: e.value))
+        .toList()
+      ..sort((a, b) => b.lateCount.compareTo(a.lateCount));
+    _lateOffenders = offenders;
+    return offenders;
+  }
+
   String _normalizePhone(String raw) {
     String digits = raw.replaceAll(RegExp(r'[^\d+]'), '');
     if (digits.startsWith('+')) digits = digits.substring(1);
@@ -73,8 +109,8 @@ class _AbsenteesScreenState extends ConsumerState<AbsenteesScreen> {
 
   String _message(_Absentee a) {
     final String date = DateFormat('yyyy/MM/dd').format(DateTime.now());
-    return 'السلام عليكم $a.guardianName\n'
-        'نود إبلاغكم بأن ابنكم $a.name كان غائباً اليوم $date.\n'
+    return 'السلام عليكم ${a.guardianName}\n'
+        'نود إبلاغكم بأن ابنكم ${a.name} كان غائباً اليوم $date.\n'
         'نرجو المتابعة، وشكراً تعاونكم.';
   }
 
@@ -108,125 +144,205 @@ class _AbsenteesScreenState extends ConsumerState<AbsenteesScreen> {
     final ThemeData theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('الغائبون اليوم')),
-      body: FutureBuilder<List<_Absentee>>(
-        future: _future,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const LoadingView();
-          }
-          if (snapshot.hasError) {
-            return ErrorView(
-              error: snapshot.error!,
-              onRetry: () => setState(() => _future = _load()),
-            );
-          }
-          final List<_Absentee> list = snapshot.data ?? [];
-          if (list.isEmpty) {
-            return const EmptyView(
-              icon: Icons.verified_rounded,
-              title: 'لا يوجد غائبين اليوم 🎉',
-              subtitle: 'جميع الطلاب حاضرون',
-            );
-          }
-          return ListView.separated(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-            itemCount: list.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 10),
-            itemBuilder: (context, index) {
-              final _Absentee a = list[index];
-              return Card(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          CircleAvatar(
-                            backgroundColor:
-                                const Color(0xFFDC2626).withOpacity(0.12),
-                            child: Text(
-                              a.name.isNotEmpty ? a.name.substring(0, 1) : '?',
-                              style: const TextStyle(
-                                color: Color(0xFFDC2626),
-                                fontWeight: FontWeight.w700,
-                              ),
+      appBar: AppBar(title: const Text('متابعة الغياب والتأخير')),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: SegmentedButton<bool>(
+              segments: const [
+                ButtonSegment(value: false, label: Text('غائبون اليوم')),
+                ButtonSegment(value: true, label: Text('متأخرون +3 مرات')),
+              ],
+              selected: {_showLate},
+              onSelectionChanged: (s) => setState(() => _showLate = s.first),
+            ),
+          ),
+          Expanded(
+            child: _showLate ? _buildLateList(theme) : _buildAbsentList(theme),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAbsentList(ThemeData theme) {
+    return FutureBuilder<List<_Absentee>>(
+      future: _future,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const LoadingView();
+        }
+        if (snapshot.hasError) {
+          return ErrorView(
+            error: snapshot.error!,
+            onRetry: () => setState(() => _future = _load()),
+          );
+        }
+        final List<_Absentee> list = snapshot.data ?? [];
+        if (list.isEmpty) {
+          return const EmptyView(
+            icon: Icons.verified_rounded,
+            title: 'لا يوجد غائبين اليوم 🎉',
+            subtitle: 'جميع الطلاب حاضرون',
+          );
+        }
+        return ListView.separated(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+          itemCount: list.length,
+          separatorBuilder: (_, __) => const SizedBox(height: 10),
+          itemBuilder: (context, index) {
+            final _Absentee a = list[index];
+            return Card(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        CircleAvatar(
+                          backgroundColor:
+                              const Color(0xFFDC2626).withOpacity(0.12),
+                          child: Text(
+                            a.name.isNotEmpty ? a.name.substring(0, 1) : '?',
+                            style: const TextStyle(
+                              color: Color(0xFFDC2626),
+                              fontWeight: FontWeight.w700,
                             ),
                           ),
-                          const SizedBox(width: 12),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                a.name,
+                                style: theme.textTheme.titleSmall?.copyWith(
+                                    fontWeight: FontWeight.w700),
+                              ),
+                              Text(
+                                [
+                                  if (a.className.isNotEmpty) a.className,
+                                  if (a.guardianName.isNotEmpty)
+                                    'ولي الأمر: ${a.guardianName}',
+                                  if (a.guardianPhone.isNotEmpty)
+                                    a.guardianPhone,
+                                ].join(' • '),
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                    color: theme.hintColor),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (a.guardianPhone.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
                           Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  a.name,
-                                  style: theme.textTheme.titleSmall?.copyWith(
-                                      fontWeight: FontWeight.w700),
-                                ),
-                                Text(
-                                  [
-                                    if (a.className.isNotEmpty) a.className,
-                                    if (a.guardianName.isNotEmpty)
-                                      'ولي الأمر: ${a.guardianName}',
-                                    if (a.guardianPhone.isNotEmpty)
-                                      a.guardianPhone,
-                                  ].join(' • '),
-                                  style: theme.textTheme.bodySmall?.copyWith(
-                                      color: theme.hintColor),
-                                ),
-                              ],
+                            child: FilledButton.icon(
+                              style: FilledButton.styleFrom(
+                                minimumSize: const Size.fromHeight(42),
+                                backgroundColor: const Color(0xFF25D366),
+                              ),
+                              onPressed: () => _sendWhatsApp(a),
+                              icon: const Icon(Icons.chat_rounded,
+                                  size: 18, color: Colors.white),
+                              label: const Text('واتساب',
+                                  style: TextStyle(color: Colors.white)),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              style: OutlinedButton.styleFrom(
+                                minimumSize: const Size.fromHeight(42),
+                              ),
+                              onPressed: () => _sendSms(a),
+                              icon: const Icon(Icons.sms_rounded, size: 18),
+                              label: const Text('رسالة SMS'),
                             ),
                           ),
                         ],
                       ),
-                      if (a.guardianPhone.isNotEmpty) ...[
-                        const SizedBox(height: 12),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: FilledButton.icon(
-                                style: FilledButton.styleFrom(
-                                  minimumSize: const Size.fromHeight(42),
-                                  backgroundColor: const Color(0xFF25D366),
-                                ),
-                                onPressed: () => _sendWhatsApp(a),
-                                icon: const Icon(Icons.chat_rounded,
-                                    size: 18, color: Colors.white),
-                                label: const Text('واتساب',
-                                    style: TextStyle(color: Colors.white)),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: OutlinedButton.icon(
-                                style: OutlinedButton.styleFrom(
-                                  minimumSize: const Size.fromHeight(42),
-                                ),
-                                onPressed: () => _sendSms(a),
-                                icon: const Icon(Icons.sms_rounded, size: 18),
-                                label: const Text('رسالة SMS'),
-                              ),
-                            ),
-                          ],
+                    ] else
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Text(
+                          'لا يوجد رقم لولي الأمر — أضفه من ملف الطالب',
+                          style: theme.textTheme.bodySmall
+                              ?.copyWith(color: theme.hintColor),
                         ),
-                      ] else
-                        Padding(
-                          padding: const EdgeInsets.only(top: 8),
-                          child: Text(
-                            'لا يوجد رقم لولي الأمر — أضفه من ملف الطالب',
-                            style: theme.textTheme.bodySmall
-                                ?.copyWith(color: theme.hintColor),
-                          ),
-                        ),
-                    ],
+                      ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildLateList(ThemeData theme) {
+    return FutureBuilder<List<_LateOffender>>(
+      future: _loadLate(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const LoadingView();
+        }
+        if (snapshot.hasError) {
+          return ErrorView(error: snapshot.error!);
+        }
+        final List<_LateOffender> list = snapshot.data ?? [];
+        if (list.isEmpty) {
+          return const EmptyView(
+            icon: Icons.verified_rounded,
+            title: 'لا يوجد متأخرون 👏',
+            subtitle: 'ما فيه أحد تأخر أكثر من 3 مرات في آخر 30 يوم',
+          );
+        }
+        return ListView.separated(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+          itemCount: list.length,
+          separatorBuilder: (_, __) => const SizedBox(height: 10),
+          itemBuilder: (context, index) {
+            final _LateOffender o = list[index];
+            return Card(
+              child: ListTile(
+                leading: CircleAvatar(
+                  backgroundColor:
+                      const Color(0xFFF59E0B).withOpacity(0.15),
+                  child: const Icon(Icons.schedule_rounded,
+                      color: Color(0xFFF59E0B), size: 20),
+                ),
+                title: Text(o.name,
+                    style: const TextStyle(fontWeight: FontWeight.w600)),
+                subtitle: Text('آخر 30 يوم',
+                    style: TextStyle(fontSize: 12, color: theme.hintColor)),
+                trailing: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFDC2626).withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    'متأخر ${o.lateCount} مرات ⚠️',
+                    style: const TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFFDC2626),
+                        fontWeight: FontWeight.w700),
                   ),
                 ),
-              );
-            },
-          );
-        },
-      ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 }

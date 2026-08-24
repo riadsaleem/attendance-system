@@ -27,12 +27,16 @@ class _StudentFormScreenState extends ConsumerState<StudentFormScreen> {
   late final TextEditingController _fingerprint =
       TextEditingController(text: widget.existing?.fingerprintId ?? '');
   int? _classId;
+  String? _section;
   bool _saving = false;
+
+  static const List<String> _sections = ['أ', 'ب', 'ج', 'د'];
 
   @override
   void initState() {
     super.initState();
     _classId = widget.existing?.classId;
+    _section = widget.existing?.section;
   }
 
   @override
@@ -56,6 +60,7 @@ class _StudentFormScreenState extends ConsumerState<StudentFormScreen> {
       id: widget.existing?.id ?? 0,
       fullName: _name.text.trim(),
       classId: _classId!,
+      section: _section,
       guardianName: _guardianName.text.trim().isEmpty
           ? null
           : _guardianName.text.trim(),
@@ -158,6 +163,34 @@ class _StudentFormScreenState extends ConsumerState<StudentFormScreen> {
                             )
                             .toList(),
                         onChanged: (v) => setState(() => _classId = v),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 18),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'الشعبة',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      DropdownButtonFormField<String>(
+                        value: _section,
+                        isExpanded: true,
+                        decoration: const InputDecoration(
+                          prefixIcon: Icon(Icons.call_split_rounded),
+                        ),
+                        items: _sections
+                            .map((s) => DropdownMenuItem(
+                                  value: s,
+                                  child: Text('شعبة $s'),
+                                ))
+                            .toList(),
+                        onChanged: (v) => setState(() => _section = v),
+                        hint: const Text('اختياري'),
                       ),
                     ],
                   ),

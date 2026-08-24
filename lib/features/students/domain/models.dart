@@ -32,7 +32,7 @@ class SchoolClass {
       );
 
   String get displayName =>
-      gradeName.isEmpty ? name : '$gradeName - $name';
+      gradeName.isEmpty || name.contains(gradeName) ? name : '$gradeName - $name';
 }
 
 class Student {
@@ -42,6 +42,7 @@ class Student {
     required this.classId,
     this.className = '',
     this.gradeName = '',
+    this.section,
     this.guardianName,
     this.guardianPhone,
     this.fingerprintId,
@@ -53,6 +54,7 @@ class Student {
   final int classId;
   final String className;
   final String gradeName;
+  final String? section;
   final String? guardianName;
   final String? guardianPhone;
   final String? fingerprintId;
@@ -67,6 +69,7 @@ class Student {
       classId: json['class_id'] as int,
       className: klass?['name'] as String? ?? '',
       gradeName: grade?['name'] as String? ?? '',
+      section: json['section'] as String?,
       guardianName: json['guardian_name'] as String?,
       guardianPhone: json['guardian_phone'] as String?,
       fingerprintId: json['fingerprint_id'] as String?,
@@ -77,6 +80,7 @@ class Student {
   Map<String, dynamic> toDbJson() => {
         'full_name': fullName,
         'class_id': classId,
+        'section': section,
         'guardian_name': guardianName,
         'guardian_phone': guardianPhone,
         'fingerprint_id': fingerprintId,

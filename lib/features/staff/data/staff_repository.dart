@@ -27,15 +27,33 @@ class StaffRepository {
 
   Future<void> delete(int id) => _client.from('staff').delete().eq('id', id);
 
-  Future<Map<int, String>> fetchMarksForDate(DateTime date) async {
+  Future<Map<int, Map<String, dynamic>>> fetchMarksForDate(DateTime date) async {
     final rows = await _client
         .from('staff_attendance')
-        .select('staff_id, status')
+        .select('staff_id, status, check_in_time, check_out_time')
         .eq('attendance_date', _fmt(date));
     return {
       for (final Map<String, dynamic> row in rows)
-        row['staff_id'] as int: (row['status'] ?? 'absent') as String,
+        row['staff_id'] as int: {
+          'status': (row['status'] ?? 'absent') as String,
+          'check_in_time': row['check_in_time'] as String?,
+          'check_out_time': row['check_out_time'] as String?,
+        },
     };
+  }
+
+  Future<List<Map<String, dynamic>>> fetchStaffLogsInRange(
+    int staffId,
+    DateTime from,
+    DateTime to,
+  ) async {
+    return await _client
+        .from('staff_attendance')
+        .select()
+        .eq('staff_id', staffId)
+        .gte('attendance_date', _fmt(from))
+        .lte('attendance_date', _fmt(to))
+        .order('attendance_date');
   }
 
   Future<void> upsertAttendance({
@@ -50,7 +68,10 @@ class StaffRepository {
         'staff_id': e.staff.id,
         'attendance_date': dateStr,
         'status': e.status!.dbValue,
-        'check_in_time': absent ? null : DateTime.now().toIso8601String(),
+        'check_in_time':
+            absent || e.checkIn == null ? null : e.checkIn!.toIso8601String(),
+        'check_out_time':
+            absent || e.checkOut == null ? null : e.checkOut!.toIso8601String(),
         'recorded_by': recordedBy,
       };
     }).toList();

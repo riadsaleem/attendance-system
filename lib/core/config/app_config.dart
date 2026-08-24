@@ -7,4 +7,6 @@ class AppConfig {
   static const int schoolStartTimeHour = 7;
   static const int schoolStartTimeMinute = 30;
   static const int lateThresholdMinutes = 15;
+  static const int staffShiftStartHour = 8;
+  static const int staffShiftHours = 14;
 }

@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -370,28 +371,6 @@ class _ReportPreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Widget stat(String label, String value, Color color) => Expanded(
-          child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 10),
-            margin: const EdgeInsets.symmetric(horizontal: 3),
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.12),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Column(
-              children: [
-                Text(value,
-                    style: TextStyle(
-                        color: color,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700)),
-                const SizedBox(height: 2),
-                Text(label, style: TextStyle(color: color, fontSize: 11)),
-              ],
-            ),
-          ),
-        );
-
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(14),
@@ -421,16 +400,98 @@ class _ReportPreview extends StatelessWidget {
             const SizedBox(height: 12),
             Row(
               children: [
-                stat('حاضر', '${report.summary.present}',
-                    const Color(0xFF16A34A)),
-                stat('متأخر', '${report.summary.late}',
-                    const Color(0xFFF59E0B)),
-                stat('غائب', '${report.summary.absent}',
-                    const Color(0xFFDC2626)),
-                stat(
-                  'النسبة',
-                  '${report.summary.rate.toStringAsFixed(1)}%',
-                  theme.colorScheme.primary,
+                SizedBox(
+                  width: 74,
+                  height: 74,
+                  child: PieChart(
+                    PieChartData(
+                      sectionsSpace: 2,
+                      centerSpaceRadius: 16,
+                      startDegreeOffset: -90,
+                      sections: [
+                        PieChartSectionData(
+                          value: report.summary.present.toDouble(),
+                          color: const Color(0xFF16A34A),
+                          radius: 15,
+                          showTitle: false,
+                        ),
+                        PieChartSectionData(
+                          value: report.summary.late.toDouble(),
+                          color: const Color(0xFFF59E0B),
+                          radius: 15,
+                          showTitle: false,
+                        ),
+                        PieChartSectionData(
+                          value: report.summary.absent.toDouble(),
+                          color: const Color(0xFFDC2626),
+                          radius: 15,
+                          showTitle: false,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    children: [
+                      Row(
+                        children: [
+                          _legendDot(const Color(0xFF16A34A)),
+                          const SizedBox(width: 4),
+                          const Text('حاضر'),
+                          const Spacer(),
+                          Text('${report.summary.present}',
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.w700)),
+                        ],
+                      ),
+                      Row(
+                        children: [
+                          _legendDot(const Color(0xFFF59E0B)),
+                          const SizedBox(width: 4),
+                          const Text('متأخر'),
+                          const Spacer(),
+                          Text('${report.summary.late}',
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.w700)),
+                        ],
+                      ),
+                      Row(
+                        children: [
+                          _legendDot(const Color(0xFFDC2626)),
+                          const SizedBox(width: 4),
+                          const Text('غائب'),
+                          const Spacer(),
+                          Text('${report.summary.absent}',
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.w700)),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.primary.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    children: [
+                      Text(
+                        '${report.summary.rate.toStringAsFixed(0)}%',
+                        style: TextStyle(
+                            color: theme.colorScheme.primary,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 16),
+                      ),
+                      const Text('الحضور',
+                          style: TextStyle(fontSize: 11)),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -439,4 +500,10 @@ class _ReportPreview extends StatelessWidget {
       ),
     );
   }
+
+  Widget _legendDot(Color color) => Container(
+        width: 10,
+        height: 10,
+        decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+      );
 }

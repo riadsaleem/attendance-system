@@ -49,8 +49,21 @@ class ReportsRepository {
         }
         final rows = await query.order('attendance_date');
 
+        var rosterQuery = _client
+            .from('students')
+            .select('full_name')
+            .eq('is_active', true);
+        if (classId != null) {
+          rosterQuery = rosterQuery.eq('class_id', classId);
+        }
+        final roster = await rosterQuery.order('full_name');
+
         return _aggregate(
           rows: rows,
+          rosterNames: roster
+              .map<String>((r) => (r['full_name'] ?? '') as String)
+              .where((n) => n.isNotEmpty)
+              .toList(),
           type: type,
           className: className,
           periodLabel: periodLabel,
@@ -91,16 +104,21 @@ class ReportsRepository {
 
   ReportData _aggregate({
     required List<Map<String, dynamic>> rows,
+    required List<String> rosterNames,
     required ReportType type,
     required String className,
     required String periodLabel,
   }) {
     final Map<String, List<int>> perStudent = {};
+    for (final String name in rosterNames) {
+      perStudent.putIfAbsent(name, () => [0, 0, 0]);
+    }
     for (final Map<String, dynamic> row in rows) {
       final String status = (row['status'] ?? 'absent') as String;
       final String name =
           ((row['students'] as Map<String, dynamic>?)?['full_name'] ?? '؟')
               as String;
+      if (name == '؟') continue;
       perStudent.putIfAbsent(name, () => [0, 0, 0]);
       if (status == 'present') {
         perStudent[name]![0]++;

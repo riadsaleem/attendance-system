@@ -21,6 +21,7 @@ final workersProvider = FutureProvider.autoDispose<List<Staff>>((ref) {
 });
 
 final staffMarksForDateProvider =
-    FutureProvider.autoDispose.family<Map<int, String>, DateTime>((ref, date) {
+    FutureProvider.autoDispose.family<Map<int, Map<String, dynamic>>, DateTime>(
+        (ref, date) {
   return ref.watch(staffRepositoryProvider).fetchMarksForDate(date);
 });
