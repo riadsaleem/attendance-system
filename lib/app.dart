@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'core/config/app_config.dart';
 import 'core/router/app_router.dart';
 import 'core/theme/app_theme.dart';
+import 'core/theme/theme_provider.dart';
 
 class AttendanceApp extends ConsumerWidget {
   const AttendanceApp({super.key});
@@ -19,7 +20,7 @@ class AttendanceApp extends ConsumerWidget {
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
-      themeMode: ThemeMode.system,
+      themeMode: ref.watch(themeProvider),
       routerConfig: router,
       locale: const Locale('ar'),
       localizationsDelegates: const [

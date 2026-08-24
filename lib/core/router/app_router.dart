@@ -4,11 +4,16 @@ import 'package:go_router/go_router.dart';
 import '../../features/auth/presentation/login_screen.dart';
 import '../../features/auth/presentation/register_screen.dart';
 import '../../features/auth/providers/auth_providers.dart';
-import '../../features/home/presentation/home_screen.dart';
+import '../../features/attendance/presentation/attendance_screen.dart';
+import '../../features/dashboard/presentation/dashboard_screen.dart';
+import '../../features/home/presentation/main_shell.dart';
+import '../../features/reports/presentation/reports_screen.dart';
+import '../../features/settings/presentation/settings_screen.dart';
+import '../../features/students/presentation/students_screen.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   final GoRouter router = GoRouter(
-    initialLocation: LoginScreen.routePath,
+    initialLocation: DashboardScreen.routePath,
     redirect: (context, state) {
       final bool loggedIn =
           ref.read(authRepositoryProvider).currentSession != null;
@@ -19,7 +24,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       if (!loggedIn) {
         return onAuthScreens ? null : LoginScreen.routePath;
       }
-      if (onAuthScreens) return HomeScreen.routePath;
+      if (onAuthScreens) return DashboardScreen.routePath;
       return null;
     },
     routes: [
@@ -31,9 +36,51 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: RegisterScreen.routePath,
         builder: (context, state) => const RegisterScreen(),
       ),
-      GoRoute(
-        path: HomeScreen.routePath,
-        builder: (context, state) => const HomeScreen(),
+      StatefulShellRoute.indexedStack(
+        builder: (context, state, navigationShell) =>
+            MainShell(navigationShell: navigationShell),
+        branches: [
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: DashboardScreen.routePath,
+                builder: (context, state) => const DashboardScreen(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/students',
+                builder: (context, state) => const StudentsScreen(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/attendance',
+                builder: (context, state) => const AttendanceScreen(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/reports',
+                builder: (context, state) => const ReportsScreen(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/settings',
+                builder: (context, state) => const SettingsScreen(),
+              ),
+            ],
+          ),
+        ],
       ),
     ],
   );
