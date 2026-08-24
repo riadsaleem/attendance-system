@@ -198,7 +198,7 @@ class _StaffHoursReportScreenState
                   padding: const EdgeInsets.all(16),
                   child: Column(
                     children: [
-                      _totalRow(theme, 'أيام الدوام', presentDays),
+                      _totalRow(theme, 'أيام الدوام', presentDays.toString()),
                       _totalRow(theme,
                           'إجمالي الساعات', totalHours.toStringAsFixed(1)),
                       _totalRow(theme,
