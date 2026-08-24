@@ -62,6 +62,15 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   }
 
   String _arabicError(String message) {
+    final String m = message.toLowerCase();
+    if (m.contains('socketexception') ||
+        m.contains('failed host lookup') ||
+        m.contains('no address associated') ||
+        m.contains('clientexception') ||
+        m.contains('network')) {
+      return 'لا يوجد اتصال بالإنترنت 📡\n'
+          'تحقق من شبكتك (واي فاي أو بيانات الجوال) وحاول مجدداً';
+    }
     if (message.contains('already registered')) {
       return 'هذا البريد مسجل مسبقاً، سجل دخول مباشرة';
     }
