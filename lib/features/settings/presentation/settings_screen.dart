@@ -9,6 +9,7 @@ import '../../../core/widgets/app_text_field.dart';
 import '../../../core/widgets/dialogs.dart';
 import '../../auth/domain/user_profile.dart';
 import '../../auth/providers/auth_providers.dart';
+import '../../device/presentation/device_screen.dart';
 import 'license_codes_screen.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
@@ -140,6 +141,21 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 onTap: () => Navigator.of(context).push(
                   MaterialPageRoute(
                     builder: (_) => const LicenseCodesScreen(),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            _SectionTitle(theme: theme, label: 'الأجهزة'),
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.fingerprint_rounded),
+                title: const Text('ربط جهاز البصمة'),
+                subtitle: const Text('الاتصال بالجهاز عبر الشبكة وسحب السجلات'),
+                trailing: const Icon(Icons.chevron_left_rounded),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => const DeviceScreen(),
                   ),
                 ),
               ),
