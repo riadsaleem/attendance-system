@@ -9,6 +9,7 @@ import '../../../core/widgets/app_text_field.dart';
 import '../../../core/widgets/dialogs.dart';
 import '../../auth/domain/user_profile.dart';
 import '../../auth/providers/auth_providers.dart';
+import 'license_codes_screen.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -128,6 +129,23 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
           ),
           const SizedBox(height: 16),
+          if (user?.isAdmin ?? false) ...[
+            _SectionTitle(theme: theme, label: 'إدارة التراخيص'),
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.key_rounded),
+                title: const Text('أكواد التفعيل'),
+                subtitle: const Text('إنشاء وإدارة أكواد الاشتراك السنوي'),
+                trailing: const Icon(Icons.chevron_left_rounded),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => const LicenseCodesScreen(),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
           Card(
             child: ListTile(
               leading:

@@ -2,7 +2,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../features/assistant/presentation/assistant_screen.dart';
+import '../../features/auth/domain/user_profile.dart';
+import '../../features/auth/presentation/license_gate_screen.dart';
 import '../../features/auth/presentation/login_screen.dart';
+import '../../features/auth/presentation/onboarding_screen.dart';
 import '../../features/auth/presentation/register_screen.dart';
 import '../../features/auth/providers/auth_providers.dart';
 import '../../features/attendance/presentation/absentees_screen.dart';
@@ -27,6 +30,20 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         return onAuthScreens ? null : LoginScreen.routePath;
       }
       if (onAuthScreens) return DashboardScreen.routePath;
+
+      final UserProfile? profile =
+          ref.read(currentProfileProvider).valueOrNull;
+      if (profile == null) return null;
+
+      if (profile.needsOnboarding &&
+          location != OnboardingScreen.routePath) {
+        return OnboardingScreen.routePath;
+      }
+      if (!profile.isLicensed &&
+          !profile.isAdmin &&
+          location != LicenseGateScreen.routePath) {
+        return LicenseGateScreen.routePath;
+      }
       return null;
     },
     routes: [
@@ -37,6 +54,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: RegisterScreen.routePath,
         builder: (context, state) => const RegisterScreen(),
+      ),
+      GoRoute(
+        path: OnboardingScreen.routePath,
+        builder: (context, state) => const OnboardingScreen(),
+      ),
+      GoRoute(
+        path: LicenseGateScreen.routePath,
+        builder: (context, state) => const LicenseGateScreen(),
       ),
       GoRoute(
         path: AssistantScreen.routePath,
@@ -96,5 +121,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
   );
 
   ref.listen(authChangesProvider, (_, __) => router.refresh());
+  ref.listen(currentProfileProvider, (_, __) => router.refresh());
   return router;
 });
