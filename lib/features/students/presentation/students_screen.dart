@@ -8,6 +8,8 @@ import '../../../core/constants/app_constants.dart';
 import '../../auth/domain/user_profile.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../domain/models.dart';
+import '../../university/presentation/university_screen.dart';
+import '../../university/providers/university_providers.dart';
 import '../providers/students_providers.dart';
 import 'classes_screen.dart';
 import 'student_form_screen.dart';
@@ -22,6 +24,9 @@ class StudentsScreen extends ConsumerStatefulWidget {
 class _StudentsScreenState extends ConsumerState<StudentsScreen> {
   String _search = '';
   int? _classFilter;
+  int? _filterCollegeId;
+  int? _filterMajorId;
+  int? _filterYear;
 
   @override
   Widget build(BuildContext context) {
@@ -29,6 +34,7 @@ class _StudentsScreenState extends ConsumerState<StudentsScreen> {
     final AsyncValue<UserProfile?> profile = ref.watch(currentProfileProvider);
     final AsyncValue<List<Student>> students = ref.watch(studentsProvider);
     final AsyncValue<List<SchoolClass>> classes = ref.watch(classesProvider);
+    final bool university = profile.valueOrNull?.isUniversity ?? false;
 
     final bool isAdmin = profile.valueOrNull?.role.canManageStudents ?? false;
 
@@ -36,7 +42,13 @@ class _StudentsScreenState extends ConsumerState<StudentsScreen> {
       appBar: AppBar(
         title: const Text('الطلاب'),
         actions: [
-          if (isAdmin)
+          if (isAdmin && university)
+            IconButton(
+              icon: const Icon(Icons.account_balance_rounded),
+              tooltip: 'الكليات والتخصصات',
+              onPressed: () => _openUniversity(),
+            ),
+          if (isAdmin && !university)
             IconButton(
               icon: const Icon(Icons.school_outlined),
               tooltip: 'إدارة الصفوف',
@@ -69,19 +81,22 @@ class _StudentsScreenState extends ConsumerState<StudentsScreen> {
               ),
             ),
           ),
-          classes.when(
-            loading: () => const SizedBox(height: 48),
-            error: (e, _) => const SizedBox(height: 48),
-            data: (classList) => SizedBox(
-              height: 52,
-              child: ListView(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.only(left: 8),
-                    child: FilterChip(
-                      label: const Text('الكل'),
+          if (university)
+            _universityFilters(theme)
+          else
+            classes.when(
+              loading: () => const SizedBox(height: 48),
+              error: (e, _) => const SizedBox(height: 48),
+              data: (classList) => SizedBox(
+                height: 52,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(left: 8),
+                      child: FilterChip(
+                        label: const Text('الكل'),
                       selected: _classFilter == null,
                       onSelected: (_) => setState(() => _classFilter = null),
                     ),
@@ -113,9 +128,18 @@ class _StudentsScreenState extends ConsumerState<StudentsScreen> {
                 final filtered = list.where((s) {
                   final matchesSearch = _search.isEmpty ||
                       s.fullName.contains(_search.trim());
-                  final matchesClass =
-                      _classFilter == null || s.classId == _classFilter;
-                  return matchesSearch && matchesClass;
+                  final bool matchesGroup;
+                  if (university) {
+                    final bool matchesMajor = _filterMajorId == null ||
+                        s.majorId == _filterMajorId;
+                    final bool matchesYear =
+                        _filterYear == null || s.yearNumber == _filterYear;
+                    matchesGroup = matchesMajor && matchesYear;
+                  } else {
+                    matchesGroup =
+                        _classFilter == null || s.classId == _classFilter;
+                  }
+                  return matchesSearch && matchesGroup;
                 }).toList();
 
                 if (filtered.isEmpty) {
@@ -157,6 +181,92 @@ class _StudentsScreenState extends ConsumerState<StudentsScreen> {
   void _openClasses() {
     Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => const ClassesScreen()),
+    );
+  }
+
+  void _openUniversity() {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const UniversityScreen()),
+    );
+  }
+
+  Widget _universityFilters(ThemeData theme) {
+    final colleges = ref.watch(collegesProvider);
+    final majors = ref.watch(majorsProvider);
+    final majorList = (majors.valueOrNull ?? [])
+        .where((m) => _filterCollegeId == null || m.collegeId == _filterCollegeId)
+        .toList();
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      child: Row(
+        children: [
+          Expanded(
+            child: DropdownButtonFormField<int?>(
+              value: _filterCollegeId,
+              isExpanded: true,
+              decoration: const InputDecoration(
+                prefixIcon: Icon(Icons.account_balance_rounded, size: 20),
+                contentPadding:
+                    EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              ),
+              hint: const Text('الكلية', style: TextStyle(fontSize: 13)),
+              items: [
+                const DropdownMenuItem(value: null, child: Text('كل الكليات')),
+                ...(colleges.valueOrNull ?? [])
+                    .map((c) => DropdownMenuItem(
+                        value: c.id, child: Text(c.name)))
+              ],
+              onChanged: (v) => setState(() {
+                _filterCollegeId = v;
+                if (_filterMajorId != null &&
+                    !(majors.valueOrNull ?? []).any((m) =>
+                        m.id == _filterMajorId && m.collegeId == v)) {
+                  _filterMajorId = null;
+                }
+              }),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: DropdownButtonFormField<int?>(
+              value: _filterMajorId,
+              isExpanded: true,
+              decoration: const InputDecoration(
+                prefixIcon: Icon(Icons.menu_book_rounded, size: 20),
+                contentPadding:
+                    EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              ),
+              hint: const Text('التخصص', style: TextStyle(fontSize: 13)),
+              items: [
+                const DropdownMenuItem(value: null, child: Text('كل التخصصات')),
+                ...majorList.map((m) =>
+                    DropdownMenuItem(value: m.id, child: Text(m.name)))
+              ],
+              onChanged: (v) => setState(() => _filterMajorId = v),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: DropdownButtonFormField<int?>(
+              value: _filterYear,
+              isExpanded: true,
+              decoration: const InputDecoration(
+                prefixIcon: Icon(Icons.format_list_numbered_rounded, size: 20),
+                contentPadding:
+                    EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              ),
+              hint: const Text('السنة', style: TextStyle(fontSize: 13)),
+              items: [
+                const DropdownMenuItem(value: null, child: Text('كل السنوات')),
+                ...List.generate(8, (i) => i + 1).map((y) =>
+                    DropdownMenuItem(value: y, child: Text('سنة $y')))
+              ],
+              onChanged: (v) => setState(() => _filterYear = v),
+            ),
+          ),
+        ],
+      ),
     );
   }
 

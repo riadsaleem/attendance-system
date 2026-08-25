@@ -9,7 +9,7 @@ class StudentsRepository {
   final SupabaseClient _client;
 
   static const String _select =
-      '*, classes(name, grades(name))';
+      '*, classes(name, grades(name)), majors(name)';
 
   Future<List<Student>> fetchAll() => supabaseRetry(() async {
     final rows = await _client
@@ -20,11 +20,13 @@ class StudentsRepository {
     return rows.map(Student.fromJson).toList();
   });
 
-  Future<void> insert(Student student) =>
-      _client.from('students').insert(student.toDbJson());
+  Future<void> insert(Student student, {bool university = false}) =>
+      _client.from('students').insert(student.toDbJson(university: university));
 
-  Future<void> update(Student student) =>
-      _client.from('students').update(student.toDbJson()).eq('id', student.id);
+  Future<void> update(Student student, {bool university = false}) => _client
+      .from('students')
+      .update(student.toDbJson(university: university))
+      .eq('id', student.id);
 
   Future<void> delete(int id) => _client.from('students').delete().eq('id', id);
 }

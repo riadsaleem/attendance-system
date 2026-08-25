@@ -43,6 +43,9 @@ class Student {
     this.className = '',
     this.gradeName = '',
     this.section,
+    this.majorId,
+    this.majorName = '',
+    this.yearNumber,
     this.guardianName,
     this.guardianPhone,
     this.fingerprintId,
@@ -55,6 +58,9 @@ class Student {
   final String className;
   final String gradeName;
   final String? section;
+  final int? majorId;
+  final String majorName;
+  final int? yearNumber;
   final String? guardianName;
   final String? guardianPhone;
   final String? fingerprintId;
@@ -63,13 +69,17 @@ class Student {
   factory Student.fromJson(Map<String, dynamic> json) {
     final klass = json['classes'] as Map<String, dynamic>?;
     final grade = klass?['grades'] as Map<String, dynamic>?;
+    final major = json['majors'] as Map<String, dynamic>?;
     return Student(
       id: json['id'] as int,
       fullName: json['full_name'] as String,
-      classId: json['class_id'] as int,
+      classId: json['class_id'] as int? ?? 0,
       className: klass?['name'] as String? ?? '',
       gradeName: grade?['name'] as String? ?? '',
       section: json['section'] as String?,
+      majorId: json['major_id'] as int?,
+      majorName: major?['name'] as String? ?? '',
+      yearNumber: json['year_number'] as int?,
       guardianName: json['guardian_name'] as String?,
       guardianPhone: json['guardian_phone'] as String?,
       fingerprintId: json['fingerprint_id'] as String?,
@@ -77,13 +87,23 @@ class Student {
     );
   }
 
-  Map<String, dynamic> toDbJson() => {
-        'full_name': fullName,
-        'class_id': classId,
-        'section': section,
-        'guardian_name': guardianName,
-        'guardian_phone': guardianPhone,
-        'fingerprint_id': fingerprintId,
-        'is_active': isActive,
-      };
+  Map<String, dynamic> toDbJson({required bool university}) => university
+      ? {
+          'full_name': fullName,
+          'major_id': majorId,
+          'year_number': yearNumber,
+          'guardian_name': guardianName,
+          'guardian_phone': guardianPhone,
+          'fingerprint_id': fingerprintId,
+          'is_active': isActive,
+        }
+      : {
+          'full_name': fullName,
+          'class_id': classId,
+          'section': section,
+          'guardian_name': guardianName,
+          'guardian_phone': guardianPhone,
+          'fingerprint_id': fingerprintId,
+          'is_active': isActive,
+        };
 }

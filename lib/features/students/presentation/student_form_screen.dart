@@ -4,6 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/widgets/app_snack_bar.dart';
 import '../../../core/widgets/app_text_field.dart';
 import '../../../core/widgets/state_views.dart';
+import '../../auth/providers/auth_providers.dart';
+import '../../university/domain/models.dart';
+import '../../university/providers/university_providers.dart';
 import '../domain/models.dart';
 import '../providers/students_providers.dart';
 
@@ -28,15 +31,26 @@ class _StudentFormScreenState extends ConsumerState<StudentFormScreen> {
       TextEditingController(text: widget.existing?.fingerprintId ?? '');
   int? _classId;
   String? _section;
+  int? _collegeId;
+  int? _majorId;
+  int? _year;
   bool _saving = false;
 
   static const List<String> _sections = ['أ', 'ب', 'ج', 'د'];
+
+  bool get _university =>
+      ref.read(currentProfileProvider).valueOrNull?.isUniversity ?? false;
 
   @override
   void initState() {
     super.initState();
     _classId = widget.existing?.classId;
     _section = widget.existing?.section;
+    _collegeId = widget.existing?.majorId == null
+        ? null
+        : null; // resolved below from majors
+    _majorId = widget.existing?.majorId;
+    _year = widget.existing?.yearNumber;
   }
 
   @override
@@ -50,7 +64,16 @@ class _StudentFormScreenState extends ConsumerState<StudentFormScreen> {
 
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
-    if (_classId == null) {
+    if (_university) {
+      if (_majorId == null) {
+        showAppSnackBar(context, 'اختر التخصص أولاً', isError: true);
+        return;
+      }
+      if (_year == null) {
+        showAppSnackBar(context, 'اختر السنة الدراسية', isError: true);
+        return;
+      }
+    } else if (_classId == null) {
       showAppSnackBar(context, 'اختر الصف أولاً', isError: true);
       return;
     }
@@ -59,7 +82,9 @@ class _StudentFormScreenState extends ConsumerState<StudentFormScreen> {
     final Student student = Student(
       id: widget.existing?.id ?? 0,
       fullName: _name.text.trim(),
-      classId: _classId!,
+      classId: _classId ?? 0,
+      majorId: _majorId,
+      yearNumber: _year,
       section: _section,
       guardianName: _guardianName.text.trim().isEmpty
           ? null
@@ -74,9 +99,9 @@ class _StudentFormScreenState extends ConsumerState<StudentFormScreen> {
     try {
       final repo = ref.read(studentsRepositoryProvider);
       if (widget.existing == null) {
-        await repo.insert(student);
+        await repo.insert(student, university: _university);
       } else {
-        await repo.update(student);
+        await repo.update(student, university: _university);
       }
       ref.invalidate(studentsProvider);
       if (mounted) {
@@ -102,26 +127,218 @@ class _StudentFormScreenState extends ConsumerState<StudentFormScreen> {
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
+    final bool university = _university;
     final AsyncValue<List<SchoolClass>> classes = ref.watch(classesProvider);
+    final colleges = ref.watch(collegesProvider);
+    final majors = ref.watch(majorsProvider);
+
+    // resolve college of the selected major (edit mode)
+    if (university && _collegeId == null && _majorId != null) {
+      final majorList = majors.valueOrNull ?? [];
+      for (final m in majorList) {
+        if (m.id == _majorId) _collegeId = m.collegeId;
+      }
+    }
+    final List<Major> filteredMajors = (majors.valueOrNull ?? [])
+        .where((m) => _collegeId == null || m.collegeId == _collegeId)
+        .toList();
 
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.existing == null ? 'طالب جديد' : 'تعديل بيانات'),
       ),
-      body: classes.when(
-        loading: () => const LoadingView(label: 'تحميل الصفوف...'),
-        error: (e, _) => ErrorView(error: e),
-        data: (classList) {
-          if (classList.isEmpty) {
-            return const EmptyView(
-              icon: Icons.school_outlined,
-              title: 'لا توجد صفوف',
-              subtitle: 'أضف المراحل والصفوف أولاً من شاشة إدارة الصفوف',
-            );
-          }
-          _classId ??= classList.first.id;
+      body: university
+          ? _universityBody(theme, colleges, majors, filteredMajors)
+          : classes.when(
+              loading: () => const LoadingView(label: 'تحميل الصفوف...'),
+              error: (e, _) => ErrorView(error: e),
+              data: (classList) {
+                if (classList.isEmpty) {
+                  return const EmptyView(
+                    icon: Icons.school_outlined,
+                    title: 'لا توجد صفوف',
+                    subtitle: 'أضف المراحل والصفوف أولاً من شاشة إدارة الصفوف',
+                  );
+                }
+                _classId ??= classList.first.id;
+                return _schoolBody(theme, classList);
+              },
+            ),
+    );
+  }
 
-          return SingleChildScrollView(
+  Widget _universityBody(
+    ThemeData theme,
+    AsyncValue<List<College>> colleges,
+    AsyncValue<List<Major>> majors,
+    List<Major> filteredMajors,
+  ) {
+    final collegeList = colleges.valueOrNull ?? [];
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      child: Form(
+        key: _formKey,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            AppTextField(
+              controller: _name,
+              label: 'الاسم الكامل *',
+              hint: 'مثال: أحمد محمد صالح',
+              prefixIcon: Icons.person_outline_rounded,
+              textInputAction: TextInputAction.next,
+              validator: (v) =>
+                  (v ?? '').trim().length < 3 ? 'أدخل الاسم الكامل' : null,
+            ),
+            const SizedBox(height: 18),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('الكلية *',
+                    style: theme.textTheme.bodyMedium
+                        ?.copyWith(fontWeight: FontWeight.w500)),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<int>(
+                  value: _collegeId,
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    prefixIcon: Icon(Icons.account_balance_rounded),
+                  ),
+                  items: collegeList
+                      .map((c) => DropdownMenuItem(
+                            value: c.id,
+                            child: Text(c.name),
+                          ))
+                      .toList(),
+                  onChanged: (v) => setState(() {
+                    _collegeId = v;
+                    if (_majorId != null &&
+                        !(majors.valueOrNull ?? [])
+                            .any((m) => m.id == _majorId && m.collegeId == v)) {
+                      _majorId = null;
+                    }
+                  }),
+                ),
+              ],
+            ),
+            const SizedBox(height: 18),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('التخصص *',
+                    style: theme.textTheme.bodyMedium
+                        ?.copyWith(fontWeight: FontWeight.w500)),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<int>(
+                  value: _majorId,
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    prefixIcon: Icon(Icons.menu_book_rounded),
+                  ),
+                  items: filteredMajors
+                      .map((m) => DropdownMenuItem(
+                            value: m.id,
+                            child: Text(m.name),
+                          ))
+                      .toList(),
+                  onChanged: (v) => setState(() => _majorId = v),
+                ),
+              ],
+            ),
+            const SizedBox(height: 18),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('السنة الدراسية *',
+                    style: theme.textTheme.bodyMedium
+                        ?.copyWith(fontWeight: FontWeight.w500)),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<int>(
+                  value: _year,
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    prefixIcon: Icon(Icons.format_list_numbered_rounded),
+                  ),
+                  items: List.generate(8, (i) => i + 1)
+                      .map((y) => DropdownMenuItem(
+                            value: y,
+                            child: Text('السنة $y'),
+                          ))
+                      .toList(),
+                  onChanged: (v) => setState(() => _year = v),
+                ),
+              ],
+            ),
+            const SizedBox(height: 18),
+            AppTextField(
+              controller: _guardianName,
+              label: 'اسم ولي الأمر *',
+              hint: 'مثال: محمد صالح',
+              prefixIcon: Icons.family_restroom_rounded,
+              textInputAction: TextInputAction.next,
+              validator: (v) =>
+                  (v ?? '').trim().length < 3 ? 'أدخل اسم ولي الأمر' : null,
+            ),
+            const SizedBox(height: 18),
+            AppTextField(
+              controller: _guardianPhone,
+              label: 'جوال ولي الأمر *',
+              hint: 'مثال: 777123456 — لإبلاغه بالغياب',
+              prefixIcon: Icons.phone_outlined,
+              keyboardType: TextInputType.phone,
+              textInputAction: TextInputAction.next,
+              validator: (v) {
+                final String digits = (v ?? '').replaceAll(RegExp(r'[^\d]'), '');
+                if (digits.isEmpty) return 'أدخل رقم جوال ولي الأمر';
+                if (digits.length != 9) return 'الرقم يجب أن يكون 9 أرقام';
+                if (!RegExp(r'^(77|78|71|73|70|79)').hasMatch(digits)) {
+                  return 'الرقم غير صحيح — يجب أن يبدأ 77 أو 78 أو 71 أو 73 أو 70 أو 79';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 18),
+            AppTextField(
+              controller: _fingerprint,
+              label: 'رقم البصمة *',
+              hint: 'إجباري — من 201 فأعلى (200 وأقل للموظفين)',
+              prefixIcon: Icons.fingerprint_rounded,
+              textInputAction: TextInputAction.done,
+              keyboardType: TextInputType.number,
+              onFieldSubmitted: (_) => _save(),
+              validator: (v) {
+                final String digits = (v ?? '').trim();
+                if (digits.isEmpty) return 'رقم البصمة إجباري';
+                final int? number = int.tryParse(digits);
+                if (number == null) return 'أدخل رقماً صحيحاً';
+                if (number <= 200) {
+                  return 'أرقام الطلاب من 201 فأعلى (200 وأقل للموظفين)';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 28),
+            FilledButton(
+              onPressed: _saving ? null : _save,
+              child: _saving
+                  ? const SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2.5, color: Colors.white),
+                    )
+                  : Text(widget.existing == null
+                      ? 'إضافة الطالب'
+                      : 'حفظ التعديلات'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _schoolBody(ThemeData theme, List<SchoolClass> classList) {
+    return SingleChildScrollView(
             padding: const EdgeInsets.all(20),
             child: Form(
               key: _formKey,
@@ -224,25 +441,25 @@ class _StudentFormScreenState extends ConsumerState<StudentFormScreen> {
                     },
                   ),
                   const SizedBox(height: 18),
-              AppTextField(
-                controller: _fingerprint,
-                label: 'رقم البصمة *',
-                hint: 'إجباري — من 201 فأعلى (200 وأقل للموظفين)',
-                prefixIcon: Icons.fingerprint_rounded,
-                textInputAction: TextInputAction.done,
-                keyboardType: TextInputType.number,
-                onFieldSubmitted: (_) => _save(),
-                validator: (v) {
-                  final String digits = (v ?? '').trim();
-                  if (digits.isEmpty) return 'رقم البصمة إجباري';
-                  final int? number = int.tryParse(digits);
-                  if (number == null) return 'أدخل رقماً صحيحاً';
-                  if (number <= 200) {
-                    return 'أرقام الطلاب من 201 فأعلى (200 وأقل للموظفين)';
-                  }
-                  return null;
-                },
-              ),
+                  AppTextField(
+                    controller: _fingerprint,
+                    label: 'رقم البصمة *',
+                    hint: 'إجباري — من 201 فأعلى (200 وأقل للموظفين)',
+                    prefixIcon: Icons.fingerprint_rounded,
+                    textInputAction: TextInputAction.done,
+                    keyboardType: TextInputType.number,
+                    onFieldSubmitted: (_) => _save(),
+                    validator: (v) {
+                      final String digits = (v ?? '').trim();
+                      if (digits.isEmpty) return 'رقم البصمة إجباري';
+                      final int? number = int.tryParse(digits);
+                      if (number == null) return 'أدخل رقماً صحيحاً';
+                      if (number <= 200) {
+                        return 'أرقام الطلاب من 201 فأعلى (200 وأقل للموظفين)';
+                      }
+                      return null;
+                    },
+                  ),
                   const SizedBox(height: 28),
                   FilledButton(
                     onPressed: _saving ? null : _save,
@@ -255,14 +472,13 @@ class _StudentFormScreenState extends ConsumerState<StudentFormScreen> {
                               color: Colors.white,
                             ),
                           )
-                        : Text(widget.existing == null ? 'إضافة الطالب' : 'حفظ التعديلات'),
+                        : Text(widget.existing == null
+                            ? 'إضافة الطالب'
+                            : 'حفظ التعديلات'),
                   ),
                 ],
               ),
             ),
           );
-        },
-      ),
-    );
   }
 }

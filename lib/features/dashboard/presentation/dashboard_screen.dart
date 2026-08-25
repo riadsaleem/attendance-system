@@ -10,6 +10,7 @@ import '../../auth/domain/user_profile.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../../staff/domain/staff_models.dart';
 import '../../staff/presentation/staff_screen.dart';
+import '../../university/presentation/university_screen.dart';
 import '../domain/dashboard_models.dart';
 import '../providers/dashboard_providers.dart';
 
@@ -53,7 +54,7 @@ class DashboardScreen extends ConsumerWidget {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
           children: [
-            _SectionGrid(theme: theme),
+            _SectionGrid(theme: theme, profile: profile.valueOrNull),
             const SizedBox(height: 14),
             _ShiftTimesCard(theme: theme, times: times),
             const SizedBox(height: 20),
@@ -99,12 +100,16 @@ class DashboardScreen extends ConsumerWidget {
 }
 
 class _SectionGrid extends StatelessWidget {
-  const _SectionGrid({required this.theme});
+  const _SectionGrid({required this.theme, this.profile});
 
   final ThemeData theme;
+  final UserProfile? profile;
 
   @override
   Widget build(BuildContext context) {
+    final bool staffOnly = profile?.isStaffOnly ?? false;
+    final bool university = profile?.isUniversity ?? false;
+
     final List<_SectionCardData> sections = [
       _SectionCardData(
         title: 'الموظفون',
@@ -113,13 +118,19 @@ class _SectionGrid extends StatelessWidget {
         color: const Color(0xFF0EA5E9),
         onTap: () => _openStaff(context, StaffCategory.employee),
       ),
-      _SectionCardData(
-        title: 'الطلاب الجامعين',
-        subtitle: 'قيد الإنشاء',
-        icon: Icons.menu_book_rounded,
-        color: const Color(0xFFF59E0B),
-        onTap: () => showUnderConstruction(context),
-      ),
+      if (!staffOnly)
+        _SectionCardData(
+          title: 'الطلاب الجامعين',
+          subtitle: university ? 'الكليات والتخصصات' : 'قيد الإنشاء',
+          icon: Icons.menu_book_rounded,
+          color: const Color(0xFFF59E0B),
+          onTap: university
+              ? () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                        builder: (_) => const UniversityScreen()),
+                  )
+              : () => showUnderConstruction(context),
+        ),
       _SectionCardData(
         title: 'الإحصائيات',
         subtitle: 'تقارير شاملة وتحليلات',
@@ -127,13 +138,14 @@ class _SectionGrid extends StatelessWidget {
         color: const Color(0xFF8B5CF6),
         onTap: () => context.go('/reports'),
       ),
-      _SectionCardData(
-        title: 'الطلاب',
-        subtitle: 'إدارة الطلاب والصفوف والحضور',
-        icon: Icons.school_rounded,
-        color: const Color(0xFF16A34A),
-        onTap: () => context.go('/students'),
-      ),
+      if (!staffOnly)
+        _SectionCardData(
+          title: 'الطلاب',
+          subtitle: 'إدارة الطلاب والصفوف والحضور',
+          icon: Icons.school_rounded,
+          color: const Color(0xFF16A34A),
+          onTap: () => context.go('/students'),
+        ),
     ];
 
     return GridView.count(

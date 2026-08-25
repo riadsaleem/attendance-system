@@ -7,7 +7,10 @@ import '../../../core/constants/app_constants.dart';
 import '../../../core/providers/supabase_provider.dart';
 import '../../../core/widgets/app_snack_bar.dart';
 import '../../../core/widgets/state_views.dart';
+import '../../auth/providers/auth_providers.dart';
+import '../../students/domain/models.dart';
 import '../../students/providers/students_providers.dart';
+import '../../university/providers/university_providers.dart';
 import '../domain/attendance_models.dart';
 import '../providers/attendance_providers.dart';
 import '../../dashboard/providers/dashboard_providers.dart';
@@ -22,15 +25,42 @@ class AttendanceScreen extends ConsumerStatefulWidget {
 class _AttendanceScreenState extends ConsumerState<AttendanceScreen> {
   DateTime _date = DateTime.now();
   int? _classId;
+  int? _uniMajorId;
+  int? _uniYear;
   final Map<int, AttendanceStatus?> _edits = {};
   bool _saving = false;
 
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
+    final bool university =
+        ref.watch(currentProfileProvider).valueOrNull?.isUniversity ?? false;
+    final majors = ref.watch(majorsProvider);
     final classes = ref.watch(classesProvider);
     final students = ref.watch(studentsProvider);
     final logs = ref.watch(logsForDateProvider(_date));
+
+    final List<(int, int)> uniGroups = [];
+    if (university) {
+      uniGroups.addAll(
+        (students.valueOrNull ?? [])
+            .map((s) => (s.majorId ?? 0, s.yearNumber ?? 0))
+            .where((g) => g.$1 > 0 && g.$2 > 0)
+            .toSet(),
+      );
+      uniGroups.sort((a, b) {
+        final int c = a.$1.compareTo(b.$1);
+        return c != 0 ? c : a.$2.compareTo(b.$2);
+      });
+    }
+
+    String uniGroupLabel((int, int) g) {
+      final String majorName = (majors.valueOrNull ?? [])
+          .where((m) => m.id == g.$1)
+          .map((m) => m.name)
+          .firstOrNull ?? 'تخصص';
+      return '$majorName — سنة ${g.$2}';
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -43,7 +73,15 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen> {
           ),
         ],
       ),
-      body: classes.when(
+      body: university
+          ? _universityBody(
+              theme: theme,
+              students: students,
+              logs: logs,
+              groups: uniGroups,
+              groupLabel: uniGroupLabel,
+            )
+          : classes.when(
         loading: () => const LoadingView(),
         error: (e, _) => ErrorView(
           error: e,
@@ -206,14 +244,163 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen> {
     }
   }
 
+  Widget _universityBody({
+    required ThemeData theme,
+    required AsyncValue<List<Student>> students,
+    required AsyncValue<Map<int, String>> logs,
+    required List<(int, int)> groups,
+    required String Function((int, int)) groupLabel,
+  }) {
+    if (groups.isEmpty) {
+      return const EmptyView(
+        icon: Icons.people_outline_rounded,
+        title: 'لا يوجد طلاب بعد',
+        subtitle: 'أضف طلاباً واختر لكل طالب تخصصاً وسنة دراسية',
+      );
+    }
+    int effMajor = _uniMajorId ?? groups.first.$1;
+    int effYear = _uniYear ?? groups.first.$2;
+    if (!groups.any((g) => g.$1 == effMajor && g.$2 == effYear)) {
+      effMajor = groups.first.$1;
+      effYear = groups.first.$2;
+    }
+
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+          child: DropdownButtonFormField<int>(
+            value: effMajor,
+            isExpanded: true,
+            decoration: const InputDecoration(
+              prefixIcon: Icon(Icons.menu_book_rounded),
+            ),
+            items: groups
+                .map((g) => DropdownMenuItem(
+                      value: g.$1,
+                      child: Text(groupLabel(g)),
+                    ))
+                .toList(),
+            onChanged: (v) => setState(() {
+              _uniMajorId = v;
+              _uniYear =
+                  groups.where((g) => g.$1 == v).map((g) => g.$2).first;
+              _edits.clear();
+            }),
+          ),
+        ),
+        students.when(
+          loading: () => const Expanded(child: LoadingView()),
+          error: (e, _) => Expanded(
+            child: ErrorView(
+              error: e,
+              onRetry: () => ref.invalidate(studentsProvider),
+            ),
+          ),
+          data: (allStudents) {
+            final dynamic all = allStudents;
+            final groupStudents = (all as List)
+                .where((s) =>
+                    s.majorId == effMajor && s.yearNumber == effYear)
+                .toList()
+                .cast<Student>();
+            final savedLogs = logs.valueOrNull ?? const {};
+
+            if (groupStudents.isEmpty) {
+              return const Expanded(
+                child: EmptyView(
+                  icon: Icons.people_outline_rounded,
+                  title: 'لا يوجد طلاب في هذه المجموعة',
+                ),
+              );
+            }
+
+            final entries = groupStudents
+                .map((s) => AttendanceEntry(
+                      student: s,
+                      status: _edits.containsKey(s.id)
+                          ? _edits[s.id]
+                          : AttendanceStatus.fromDb(savedLogs[s.id]),
+                    ))
+                .toList();
+            final summary = AttendanceSummary.fromEntries(entries);
+
+            return Expanded(
+              child: Column(
+                children: [
+                  _SummaryRow(theme: theme, summary: summary),
+                  _ActionBar(
+                    theme: theme,
+                    onAllPresent: () => setState(() {
+                      for (final e in entries) {
+                        _edits[e.student.id] = AttendanceStatus.present;
+                      }
+                    }),
+                    onMarkAbsent: () => setState(() {
+                      for (final e in entries) {
+                        if (_edits[e.student.id] == null && !e.isMarked) {
+                          _edits[e.student.id] = AttendanceStatus.absent;
+                        }
+                      }
+                    }),
+                    onClear:
+                        _edits.isEmpty ? null : () => setState(() => _edits.clear()),
+                  ),
+                  Expanded(
+                    child: ListView.separated(
+                      padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+                      itemCount: entries.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 8),
+                      itemBuilder: (context, index) {
+                        final entry = entries[index];
+                        return _StudentAttendanceRow(
+                          theme: theme,
+                          entry: entry,
+                          onChanged: (status) =>
+                              setState(() => _edits[entry.student.id] = status),
+                        );
+                      },
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: FilledButton.icon(
+                      onPressed: _saving ? null : _save,
+                      icon: _saving
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2.5, color: Colors.white),
+                            )
+                          : const Icon(Icons.save_rounded),
+                      label:
+                          Text('حفظ الحضور (${summary.marked} طالب)'),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+      ],
+    );
+  }
+
   Future<void> _save() async {
     setState(() => _saving = true);
     try {
       final userId =
           ref.read(supabaseClientProvider).auth.currentUser!.id;
-      final classStudents = (ref.read(studentsProvider).valueOrNull ?? const [])
-          .where((s) => s.classId == _classId)
-          .toList();
+      final bool university =
+          ref.read(currentProfileProvider).valueOrNull?.isUniversity ?? false;
+      final classStudents =
+          (ref.read(studentsProvider).valueOrNull ?? const []).where((s) {
+        if (university) {
+          return s.majorId == _uniMajorId && s.yearNumber == _uniYear;
+        }
+        return s.classId == _classId;
+      }).toList();
       final savedLogs =
           ref.read(logsForDateProvider(_date)).valueOrNull ?? const {};
 
