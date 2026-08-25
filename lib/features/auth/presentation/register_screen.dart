@@ -114,7 +114,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     AppTextField(
                       controller: _name,
                       label: 'الاسم الكامل',
-                      hint: 'مثال: رياض سالم',
+                      hint: 'مثال: رياض سليم',
                       prefixIcon: Icons.person_outline_rounded,
                       textInputAction: TextInputAction.next,
                       validator: (v) {

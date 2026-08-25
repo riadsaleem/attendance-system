@@ -216,19 +216,33 @@ class _StudentFormScreenState extends ConsumerState<StudentFormScreen> {
                       final String digits =
                           (v ?? '').replaceAll(RegExp(r'[^\d]'), '');
                       if (digits.isEmpty) return 'أدخل رقم جوال ولي الأمر';
-                      if (digits.length < 9) return 'الرقم قصير جداً';
+                      if (digits.length != 9) return 'الرقم يجب أن يكون 9 أرقام';
+                      if (!RegExp(r'^(77|78|71|73|70|79)').hasMatch(digits)) {
+                        return 'الرقم غير صحيح — يجب أن يبدأ 77 أو 78 أو 71 أو 73 أو 70 أو 79';
+                      }
                       return null;
                     },
                   ),
                   const SizedBox(height: 18),
-                  AppTextField(
-                    controller: _fingerprint,
-                    label: 'رقم البصمة',
-                    hint: 'اختياري — لربط جهاز البصمة مستقبلاً',
-                    prefixIcon: Icons.fingerprint_rounded,
-                    textInputAction: TextInputAction.done,
-                    onFieldSubmitted: (_) => _save(),
-                  ),
+              AppTextField(
+                controller: _fingerprint,
+                label: 'رقم البصمة *',
+                hint: 'إجباري — من 201 فأعلى (200 وأقل للموظفين)',
+                prefixIcon: Icons.fingerprint_rounded,
+                textInputAction: TextInputAction.done,
+                keyboardType: TextInputType.number,
+                onFieldSubmitted: (_) => _save(),
+                validator: (v) {
+                  final String digits = (v ?? '').trim();
+                  if (digits.isEmpty) return 'رقم البصمة إجباري';
+                  final int? number = int.tryParse(digits);
+                  if (number == null) return 'أدخل رقماً صحيحاً';
+                  if (number <= 200) {
+                    return 'أرقام الطلاب من 201 فأعلى (200 وأقل للموظفين)';
+                  }
+                  return null;
+                },
+              ),
                   const SizedBox(height: 28),
                   FilledButton(
                     onPressed: _saving ? null : _save,

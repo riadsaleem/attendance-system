@@ -286,19 +286,51 @@ class _ShiftTimesCard extends ConsumerWidget {
   Future<void> _editTimes(BuildContext context, WidgetRef ref) async {
     final AppTimes current = ref.read(appTimesProvider);
 
-    final TimeOfDay? school = await showTimePicker(
+    final String? target = await showDialog<String>(
       context: context,
-      initialTime: current.schoolStart,
-      helpText: 'دخول الطلاب',
+      builder: (context) => AlertDialog(
+        title: const Text('تعديل وقت الدخول لـ'),
+        actions: [
+          FilledButton.tonal(
+            onPressed: () => Navigator.pop(context, 'student'),
+            child: const Text('الطلاب'),
+          ),
+          FilledButton.tonal(
+            onPressed: () => Navigator.pop(context, 'staff'),
+            child: const Text('الموظفون'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, 'both'),
+            child: const Text('كلاهما'),
+          ),
+        ],
+      ),
     );
-    if (school == null || !context.mounted) return;
+    if (target == null || !context.mounted) return;
 
-    final TimeOfDay? staff = await showTimePicker(
-      context: context,
-      initialTime: current.staffStart,
-      helpText: 'دخول الموظفين',
-    );
-    if (staff == null) return;
+    TimeOfDay? school = current.schoolStart;
+    TimeOfDay? staff = current.staffStart;
+
+    if (target == 'student' || target == 'both') {
+      final TimeOfDay? picked = await showTimePicker(
+        context: context,
+        initialTime: current.schoolStart,
+        helpText: 'دخول الطلاب',
+      );
+      if (picked == null) return;
+      school = picked;
+    }
+
+    if (target == 'staff' || target == 'both') {
+      if (!context.mounted) return;
+      final TimeOfDay? picked = await showTimePicker(
+        context: context,
+        initialTime: current.staffStart,
+        helpText: 'دخول الموظفين',
+      );
+      if (picked == null) return;
+      staff = picked;
+    }
 
     await ref.read(appTimesProvider.notifier).update(
           schoolStart: school,

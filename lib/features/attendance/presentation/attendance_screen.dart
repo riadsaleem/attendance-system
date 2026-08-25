@@ -10,6 +10,7 @@ import '../../../core/widgets/state_views.dart';
 import '../../students/providers/students_providers.dart';
 import '../domain/attendance_models.dart';
 import '../providers/attendance_providers.dart';
+import '../../dashboard/providers/dashboard_providers.dart';
 
 class AttendanceScreen extends ConsumerStatefulWidget {
   const AttendanceScreen({super.key});
@@ -233,6 +234,7 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen> {
           );
 
       ref.invalidate(logsForDateProvider(_date));
+      ref.invalidate(dashboardProvider);
       if (mounted) {
         setState(() {
           _saving = false;

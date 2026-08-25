@@ -117,20 +117,40 @@ class _StaffFormScreenState extends ConsumerState<StaffFormScreen> {
               const SizedBox(height: 18),
               AppTextField(
                 controller: _phone,
-                label: 'رقم الجوال',
-                hint: 'اختياري — مثال: 777123456',
+                label: 'رقم الجوال *',
+                hint: 'مثال: 777123456',
                 prefixIcon: Icons.phone_outlined,
                 keyboardType: TextInputType.phone,
                 textInputAction: TextInputAction.next,
+                validator: (v) {
+                  final String digits =
+                      (v ?? '').replaceAll(RegExp(r'[^\d]'), '');
+                  if (digits.isEmpty) return 'أدخل رقم الجوال';
+                  if (digits.length != 9) return 'الرقم يجب أن يكون 9 أرقام';
+                  if (!RegExp(r'^(77|78|71|73|70|79)').hasMatch(digits)) {
+                    return 'الرقم غير صحيح — يجب أن يبدأ 77 أو 78 أو 71 أو 73 أو 70 أو 79';
+                  }
+                  return null;
+                },
               ),
               const SizedBox(height: 18),
               AppTextField(
                 controller: _fingerprint,
-                label: 'رقم البصمة',
-                hint: 'اختياري — نفس رقم التسجيل في جهاز البصمة',
+                label: 'رقم البصمة *',
+                hint: 'إجباري — من 0 إلى 200 (201 فأعلى للطلاب)',
                 prefixIcon: Icons.fingerprint_rounded,
                 textInputAction: TextInputAction.done,
                 onFieldSubmitted: (_) => _save(),
+                validator: (v) {
+                  final String digits = (v ?? '').trim();
+                  if (digits.isEmpty) return 'رقم البصمة إجباري';
+                  final int? number = int.tryParse(digits);
+                  if (number == null) return 'أدخل رقماً صحيحاً';
+                  if (number > 200) {
+                    return 'أرقام الموظفين من 0 إلى 200 فقط (201 فأعلى للطلاب)';
+                  }
+                  return null;
+                },
               ),
               const SizedBox(height: 28),
               FilledButton(

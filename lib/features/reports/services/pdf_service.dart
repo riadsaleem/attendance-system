@@ -37,7 +37,18 @@ class PdfService {
           build: (context) => [
             _header(data, bold, regular),
             pw.SizedBox(height: 16),
-            _summaryCards(data, bold, regular),
+            pw.Row(
+              crossAxisAlignment: pw.CrossAxisAlignment.center,
+              children: [
+                pw.Expanded(child: _summaryCards(data, bold, regular)),
+                pw.Container(
+                  width: 110,
+                  height: 110,
+                  padding: const pw.EdgeInsets.all(4),
+                  child: _pieChart(data, regular),
+                ),
+              ],
+            ),
             pw.SizedBox(height: 16),
             _studentsTable(data, bold, regular),
             pw.SizedBox(height: 12),
@@ -130,6 +141,41 @@ class PdfService {
           '#0E7C66',
         ),
       ],
+    );
+  }
+
+  static pw.Widget _pieChart(ReportData data, pw.Font regular) {
+    final List<pw.PieDataSet> slices = [
+      if (data.summary.present > 0)
+        pw.PieDataSet(
+          value: data.summary.present.toDouble(),
+          color: PdfColor.fromHex('#16A34A'),
+          innerRadius: 5,
+          legendStyle: pw.TextStyle(font: regular, fontSize: 7),
+        ),
+      if (data.summary.late > 0)
+        pw.PieDataSet(
+          value: data.summary.late.toDouble(),
+          color: PdfColor.fromHex('#F59E0B'),
+          innerRadius: 5,
+          legendStyle: pw.TextStyle(font: regular, fontSize: 7),
+        ),
+      if (data.summary.absent > 0)
+        pw.PieDataSet(
+          value: data.summary.absent.toDouble(),
+          color: PdfColor.fromHex('#DC2626'),
+          innerRadius: 5,
+          legendStyle: pw.TextStyle(font: regular, fontSize: 7),
+        ),
+    ];
+
+    if (slices.isEmpty) {
+      return pw.Container();
+    }
+
+    return pw.Chart(
+      grid: pw.PieGrid(),
+      datasets: slices,
     );
   }
 
