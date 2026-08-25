@@ -11,10 +11,13 @@ class AppTheme {
   static ThemeData get dark => _build(Brightness.dark);
 
   static ThemeData _build(Brightness brightness) {
-    final ColorScheme colorScheme = ColorScheme.fromSeed(
-      seedColor: seedColor,
-      brightness: brightness,
-    );
+    final ColorScheme colorScheme = brightness == Brightness.dark
+        ? ColorScheme.fromSeed(
+            seedColor: seedColor,
+            brightness: Brightness.dark,
+            surface: const Color(0xFF10151C),
+          )
+        : ColorScheme.fromSeed(seedColor: seedColor, brightness: brightness);
 
     final bool isLight = brightness == Brightness.light;
 
@@ -23,11 +26,13 @@ class AppTheme {
       colorScheme: colorScheme,
       fontFamily: fontFamily,
       scaffoldBackgroundColor:
-          isLight ? const Color(0xFFF6F8F8) : colorScheme.surface,
+          isLight ? const Color(0xFFF6F8F8) : const Color(0xFF0A0F14),
       appBarTheme: AppBarTheme(
         centerTitle: true,
         elevation: 0,
-        backgroundColor: colorScheme.surface,
+        backgroundColor: isLight
+            ? colorScheme.surface
+            : const Color(0xFF0A0F14),
         foregroundColor: colorScheme.onSurface,
         titleTextStyle: TextStyle(
           fontFamily: fontFamily,
@@ -38,11 +43,15 @@ class AppTheme {
       ),
       cardTheme: CardTheme(
         elevation: 0,
-        color: colorScheme.surfaceContainerLowest,
+        color: isLight
+            ? colorScheme.surfaceContainerLowest
+            : const Color(0xFF131B24),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
           side: BorderSide(
-            color: colorScheme.outlineVariant.withOpacity(0.5),
+            color: isLight
+                ? colorScheme.outlineVariant.withOpacity(0.5)
+                : Colors.white.withOpacity(0.06),
           ),
         ),
         clipBehavior: Clip.antiAlias,

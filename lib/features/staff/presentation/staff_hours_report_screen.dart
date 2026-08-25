@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/config/app_config.dart';
+import '../../../core/providers/times_provider.dart';
 import '../../../core/widgets/app_snack_bar.dart';
 import '../../../core/widgets/state_views.dart';
 import '../domain/staff_models.dart';
@@ -26,18 +27,18 @@ class _DayHours {
 
   double get hours {
     if (checkIn == null || checkOut == null) return 0;
-    final int minutes =
-        checkOut!.difference(checkIn!).inMinutes;
+    final int minutes = checkOut!.difference(checkIn!).inMinutes;
     return minutes <= 0 ? 0 : minutes / 60;
   }
 
-  double get lateHours {
+  double lateHours(TimeOfDay staffStart) {
     if (checkIn == null) return 0;
     final DateTime shiftStart = DateTime(
       checkIn!.year,
       checkIn!.month,
       checkIn!.day,
-      AppConfig.staffShiftStartHour,
+      staffStart.hour,
+      staffStart.minute,
     );
     final int minutes = checkIn!.difference(shiftStart).inMinutes;
     return minutes <= 0 ? 0 : minutes / 60;
@@ -98,13 +99,14 @@ class _StaffHoursReportScreenState
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final staff = ref.watch(_provider);
+    final AppTimes times = ref.watch(appTimesProvider);
 
     double totalHours = 0, totalLate = 0, totalOvertime = 0;
     int presentDays = 0;
     if (_days != null) {
       for (final _DayHours d in _days!) {
         totalHours += d.hours;
-        totalLate += d.lateHours;
+        totalLate += d.lateHours(times.staffStart);
         totalOvertime += d.overtimeHours;
         if (d.status == AttendanceMark.present ||
             d.status == AttendanceMark.late) {
@@ -253,8 +255,9 @@ class _StaffHoursReportScreenState
                               style: const TextStyle(
                                   fontWeight: FontWeight.w700,
                                   fontSize: 13)),
-                          if (d.lateHours > 0)
-                            Text('تأخير ${d.lateHours.toStringAsFixed(1)}',
+                          if (d.lateHours(times.staffStart) > 0)
+                            Text(
+                                'تأخير ${d.lateHours(times.staffStart).toStringAsFixed(1)}',
                                 style: const TextStyle(
                                     fontSize: 11,
                                     color: Color(0xFFDC2626))),

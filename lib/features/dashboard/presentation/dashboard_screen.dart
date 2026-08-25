@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/providers/times_provider.dart';
 import '../../../core/widgets/state_views.dart';
 import '../../auth/domain/user_profile.dart';
 import '../../auth/providers/auth_providers.dart';
@@ -22,6 +23,7 @@ class DashboardScreen extends ConsumerWidget {
     final ThemeData theme = Theme.of(context);
     final AsyncValue<DashboardData> data = ref.watch(dashboardProvider);
     final AsyncValue<UserProfile?> profile = ref.watch(currentProfileProvider);
+    final AppTimes times = ref.watch(appTimesProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -52,6 +54,8 @@ class DashboardScreen extends ConsumerWidget {
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
           children: [
             _SectionGrid(theme: theme),
+            const SizedBox(height: 14),
+            _ShiftTimesCard(theme: theme, times: times),
             const SizedBox(height: 20),
             Text(
               'حضور اليوم',
@@ -234,6 +238,72 @@ class _SectionCard extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class _ShiftTimesCard extends ConsumerWidget {
+  const _ShiftTimesCard({required this.theme, required this.times});
+
+  final ThemeData theme;
+  final AppTimes times;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          children: [
+            Icon(Icons.alarm_rounded, color: theme.colorScheme.primary),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('أوقات الدوام',
+                      style: theme.textTheme.titleSmall
+                          ?.copyWith(fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 2),
+                  Text(
+                    'الطلاب: ${times.schoolStartLabel} • الموظفون: ${times.staffStartLabel}',
+                    style: theme.textTheme.bodySmall
+                        ?.copyWith(color: theme.hintColor),
+                  ),
+                ],
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.edit_rounded, size: 20),
+              tooltip: 'تعديل الأوقات',
+              onPressed: () => _editTimes(context, ref),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _editTimes(BuildContext context, WidgetRef ref) async {
+    final AppTimes current = ref.read(appTimesProvider);
+
+    final TimeOfDay? school = await showTimePicker(
+      context: context,
+      initialTime: current.schoolStart,
+      helpText: 'دخول الطلاب',
+    );
+    if (school == null || !context.mounted) return;
+
+    final TimeOfDay? staff = await showTimePicker(
+      context: context,
+      initialTime: current.staffStart,
+      helpText: 'دخول الموظفين',
+    );
+    if (staff == null) return;
+
+    await ref.read(appTimesProvider.notifier).update(
+          schoolStart: school,
+          staffStart: staff,
+        );
   }
 }
 
