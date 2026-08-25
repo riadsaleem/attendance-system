@@ -56,6 +56,18 @@ class StaffRepository {
         .order('attendance_date');
   }
 
+  Future<List<Map<String, dynamic>>> fetchAllLogsInRange(
+    DateTime from,
+    DateTime to,
+  ) async {
+    return await _client
+        .from('staff_attendance')
+        .select()
+        .gte('attendance_date', _fmt(from))
+        .lte('attendance_date', _fmt(to))
+        .order('attendance_date');
+  }
+
   Future<void> upsertAttendance({
     required List<StaffAttendanceEntry> entries,
     required DateTime date,

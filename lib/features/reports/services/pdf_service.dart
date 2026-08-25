@@ -4,6 +4,7 @@ import 'package:flutter/services.dart' show rootBundle;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
+import '../../../features/staff/domain/staff_hours.dart';
 import '../domain/report_models.dart';
 
 class PdfService {
@@ -144,8 +145,7 @@ class PdfService {
     );
   }
 
-  static pw.Widget _pieChart(ReportData data, pw.Font regular) {
-    final List<pw.PieDataSet> slices = [
+  static pw.Widget _pieChart(ReportData data, pw.Font regular) {    final List<pw.PieDataSet> slices = [
       if (data.summary.present > 0)
         pw.PieDataSet(
           value: data.summary.present.toDouble(),
@@ -240,5 +240,109 @@ class PdfService {
         ),
       ],
     );
+  }
+
+  static Future<Uint8List> generateStaffHours({
+    required String title,
+    required List<StaffHoursRow> rows,
+    List<StaffHoursDetail> details = const [],
+  }) async {
+    await _loadFonts();
+    final pw.Font regular = _regular!;
+    final pw.Font bold = _bold!;
+
+    final pw.Document doc = pw.Document();
+    doc.addPage(
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.a4,
+        textDirection: pw.TextDirection.rtl,
+        margin: const pw.EdgeInsets.all(32),
+        build: (context) => [
+          pw.Container(
+            padding: const pw.EdgeInsets.all(14),
+            decoration: pw.BoxDecoration(
+              color: PdfColor.fromHex('#0E7C66'),
+              borderRadius:
+                  const pw.BorderRadius.all(pw.Radius.circular(12)),
+            ),
+            child: pw.Text(
+              title,
+              style: pw.TextStyle(
+                  font: bold, fontSize: 16, color: PdfColors.white),
+            ),
+          ),
+          pw.SizedBox(height: 14),
+          pw.TableHelper.fromTextArray(
+            headers: const [
+              'الاسم',
+              'أيام الدوام',
+              'إجمالي الساعات',
+              'تأخير',
+              'إضافي',
+              'تعادل أيام',
+            ],
+            data: rows
+                .map((r) => [
+                      r.name,
+                      '${r.presentDays}',
+                      r.totalHours.toStringAsFixed(1),
+                      r.lateHours.toStringAsFixed(1),
+                      r.overtimeHours.toStringAsFixed(1),
+                      r.extraDays.toStringAsFixed(2),
+                    ])
+                .toList(),
+            headerStyle: pw.TextStyle(
+                font: bold, fontSize: 10, color: PdfColors.white),
+            headerDecoration:
+                pw.BoxDecoration(color: PdfColor.fromHex('#0E7C66')),
+            cellStyle: pw.TextStyle(font: regular, fontSize: 9),
+            cellAlignment: pw.Alignment.center,
+            oddRowDecoration:
+                pw.BoxDecoration(color: PdfColor.fromHex('#F2F8F7')),
+          ),
+          if (details.isNotEmpty) ...[
+            pw.SizedBox(height: 14),
+            pw.Text('التفاصيل اليومية',
+                style: pw.TextStyle(font: bold, fontSize: 12)),
+            pw.SizedBox(height: 6),
+            pw.TableHelper.fromTextArray(
+              headers: const [
+                'التاريخ',
+                'الحالة',
+                'دخول',
+                'انصراف',
+                'ساعات',
+                'تأخير',
+                'إضافي',
+              ],
+              data: details
+                  .map((d) => [
+                        d.dateLabel,
+                        d.statusLabel,
+                        d.inLabel,
+                        d.outLabel,
+                        d.hoursLabel,
+                        d.lateLabel,
+                        d.extraLabel,
+                      ])
+                  .toList(),
+              headerStyle: pw.TextStyle(
+                  font: bold, fontSize: 9, color: PdfColors.white),
+              headerDecoration:
+                  pw.BoxDecoration(color: PdfColor.fromHex('#0E7C66')),
+              cellStyle: pw.TextStyle(font: regular, fontSize: 8),
+              cellAlignment: pw.Alignment.center,
+            ),
+          ],
+          pw.SizedBox(height: 10),
+          pw.Text(
+            'تطبيق متتبع البصمة — تطوير: رياض سليم',
+            style: pw.TextStyle(font: regular, fontSize: 8,
+                color: PdfColors.grey600),
+          ),
+        ],
+      ),
+    );
+    return doc.save();
   }
 }

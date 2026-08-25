@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:excel/excel.dart';
 import 'package:intl/intl.dart';
 
+import '../../../features/staff/domain/staff_hours.dart';
 import '../domain/report_models.dart';
 
 class ExcelService {
@@ -87,4 +88,67 @@ class ExcelService {
 
   static String fileNameStamp() =>
       DateFormat('yyyyMMdd_HHmm').format(DateTime.now());
+
+  static Uint8List generateStaffHours({
+    required String title,
+    required List<StaffHoursRow> rows,
+    List<StaffHoursDetail> details = const [],
+  }) {
+    final Excel excel = Excel.createExcel();
+    final Sheet sheet = excel['Sheet1'];
+
+    sheet.appendRow([TextCellValue(title)]);
+    sheet.appendRow([TextCellValue('')]);
+    sheet.appendRow([
+      TextCellValue('الاسم'),
+      TextCellValue('أيام الدوام'),
+      TextCellValue('إجمالي الساعات'),
+      TextCellValue('ساعات التأخير'),
+      TextCellValue('ساعات إضافية'),
+      TextCellValue('تعادل أيام إضافية'),
+    ]);
+    for (final StaffHoursRow row in rows) {
+      sheet.appendRow([
+        TextCellValue(row.name),
+        TextCellValue('${row.presentDays}'),
+        TextCellValue(row.totalHours.toStringAsFixed(1)),
+        TextCellValue(row.lateHours.toStringAsFixed(1)),
+        TextCellValue(row.overtimeHours.toStringAsFixed(1)),
+        TextCellValue(row.extraDays.toStringAsFixed(2)),
+      ]);
+    }
+
+    if (details.isNotEmpty) {
+      sheet.appendRow([TextCellValue('')]);
+      sheet.appendRow([TextCellValue('التفاصيل اليومية')]);
+      sheet.appendRow([
+        TextCellValue('التاريخ'),
+        TextCellValue('الحالة'),
+        TextCellValue('دخول'),
+        TextCellValue('انصراف'),
+        TextCellValue('ساعات'),
+        TextCellValue('تأخير'),
+        TextCellValue('إضافي'),
+      ]);
+      for (final StaffHoursDetail d in details) {
+        sheet.appendRow([
+          TextCellValue(d.dateLabel),
+          TextCellValue(d.statusLabel),
+          TextCellValue(d.inLabel),
+          TextCellValue(d.outLabel),
+          TextCellValue(d.hoursLabel),
+          TextCellValue(d.lateLabel),
+          TextCellValue(d.extraLabel),
+        ]);
+      }
+    }
+
+    sheet.appendRow([TextCellValue('')]);
+    sheet.appendRow([
+      TextCellValue('تطبيق متتبع البصمة — تطوير: رياض سليم'),
+    ]);
+
+    final List<int>? bytes = excel.encode();
+    return Uint8List.fromList(bytes!);
+  }
 }

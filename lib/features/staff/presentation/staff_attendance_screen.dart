@@ -4,6 +4,8 @@ import 'package:intl/intl.dart';
 
 import '../../../core/providers/supabase_provider.dart';
 import '../../../core/widgets/app_snack_bar.dart';
+import '../../../core/providers/times_provider.dart';
+import '../../../core/widgets/dialogs.dart';
 import '../../../core/widgets/state_views.dart';
 import '../domain/staff_models.dart';
 import '../providers/staff_providers.dart';
@@ -42,11 +44,17 @@ class _StaffAttendanceScreenState extends ConsumerState<StaffAttendanceScreen> {
         title: Text('حضور ${widget.category.pluralAr}'),
         actions: [
           IconButton(
+            icon: const Icon(Icons.notification_important_rounded),
+            tooltip: 'تنبيهات التأخير',
+            onPressed: () => _showLateAlerts(context),
+          ),
+          IconButton(
             icon: const Icon(Icons.schedule_rounded),
             tooltip: 'تقرير الساعات',
             onPressed: () => Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (_) => StaffHoursReportScreen(category: widget.category),
+                builder: (_) =>
+                    StaffHoursReportScreen(category: widget.category),
               ),
             ),
           ),
@@ -225,6 +233,92 @@ class _StaffAttendanceScreenState extends ConsumerState<StaffAttendanceScreen> {
           ],
         ),
       );
+
+  Future<void> _showLateAlerts(BuildContext context) async {
+    showLoadingDialog(context);
+    try {
+      final client = ref.read(supabaseClientProvider);
+      final AppTimes times = ref.read(appTimesProvider);
+      final String from = DateFormat('yyyy-MM-dd')
+          .format(DateTime.now().subtract(const Duration(days: 30)));
+      final rows = await client
+          .from('staff_attendance')
+          .select('staff_id, status, check_in_time')
+          .eq('status', 'late')
+          .gte('attendance_date', from);
+
+      final Map<int, int> lateOver30 = {};
+      for (final Map<String, dynamic> row in rows) {
+        final String? inStr = row['check_in_time'] as String?;
+        if (inStr == null) continue;
+        final DateTime checkIn = DateTime.parse(inStr);
+        final DateTime shiftStart = DateTime(checkIn.year, checkIn.month,
+            checkIn.day, times.staffStart.hour, times.staffStart.minute);
+        if (checkIn.difference(shiftStart).inMinutes > 30) {
+          final int id = row['staff_id'] as int;
+          lateOver30[id] = (lateOver30[id] ?? 0) + 1;
+        }
+      }
+
+      final List<Staff> all =
+          ref.read(_provider).valueOrNull ?? [];
+      final offenders = lateOver30.entries
+          .where((e) => e.value > 3)
+          .map((e) => (
+                name: all
+                        .where((s) => s.id == e.key)
+                        .map((s) => s.fullName)
+                        .firstOrNull ??
+                    '؟',
+                count: e.value,
+              ))
+          .toList()
+        ..sort((a, b) => b.count.compareTo(a.count));
+
+      if (context.mounted) hideLoadingDialog(context);
+
+      if (!context.mounted) return;
+      await showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('تنبيهات التأخير ⚠️'),
+          content: offenders.isEmpty
+              ? const Text(
+                  'لا يوجد موظفون متأخرون أكثر من 30 دقيقة\nأكثر من 3 مرات خلال آخر 30 يوم 👏')
+              : Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                        'تأخروا أكثر من 30 دقيقة من بداية الدوام\nأكثر من 3 مرات خلال آخر 30 يوم:'),
+                    const SizedBox(height: 12),
+                    ...offenders.map((o) => ListTile(
+                          dense: true,
+                          leading: const Icon(Icons.warning_rounded,
+                              color: Color(0xFFDC2626)),
+                          title: Text(o.name),
+                          trailing: Text(
+                              '${o.count} مرات',
+                              style: const TextStyle(
+                                  color: Color(0xFFDC2626),
+                                  fontWeight: FontWeight.w700)),
+                        )),
+                  ],
+                ),
+          actions: [
+            FilledButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('حسناً'),
+            ),
+          ],
+        ),
+      );
+    } catch (_) {
+      if (context.mounted) {
+        hideLoadingDialog(context);
+        showAppSnackBar(context, 'تعذر جلب التنبيهات', isError: true);
+      }
+    }
+  }
 
   Future<void> _pickDate() async {
     final DateTime? picked = await showDatePicker(

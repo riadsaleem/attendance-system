@@ -1,11 +1,19 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../../core/config/app_config.dart';
 import '../../../core/providers/times_provider.dart';
 import '../../../core/widgets/app_snack_bar.dart';
+import '../../../core/widgets/dialogs.dart';
 import '../../../core/widgets/state_views.dart';
+import '../../../features/staff/domain/staff_hours.dart';
+import '../../reports/services/excel_service.dart';
+import '../../reports/services/pdf_service.dart';
 import '../domain/staff_models.dart';
 import '../providers/staff_providers.dart';
 
@@ -19,73 +27,132 @@ class StaffHoursReportScreen extends ConsumerStatefulWidget {
       _StaffHoursReportScreenState();
 }
 
-class _DayHours {
-  DateTime? date;
-  DateTime? checkIn;
-  DateTime? checkOut;
-  AttendanceMark? status;
-
-  double get hours {
-    if (checkIn == null || checkOut == null) return 0;
-    final int minutes = checkOut!.difference(checkIn!).inMinutes;
-    return minutes <= 0 ? 0 : minutes / 60;
-  }
-
-  double lateHours(TimeOfDay staffStart) {
-    if (checkIn == null) return 0;
-    final DateTime shiftStart = DateTime(
-      checkIn!.year,
-      checkIn!.month,
-      checkIn!.day,
-      staffStart.hour,
-      staffStart.minute,
-    );
-    final int minutes = checkIn!.difference(shiftStart).inMinutes;
-    return minutes <= 0 ? 0 : minutes / 60;
-  }
-
-  double get overtimeHours {
-    final double extra = hours - AppConfig.staffShiftHours;
-    return extra <= 0 ? 0 : extra;
-  }
-}
-
 class _StaffHoursReportScreenState
     extends ConsumerState<StaffHoursReportScreen> {
+  bool _allMode = false;
   Staff? _selected;
   DateTime _from = DateTime.now().subtract(const Duration(days: 29));
   DateTime _to = DateTime.now();
   bool _loading = false;
-  List<_DayHours>? _days;
+  List<StaffHoursRow>? _summary;
+  List<StaffHoursDetail>? _details;
 
   AutoDisposeFutureProvider<List<Staff>> get _provider =>
       widget.category == StaffCategory.employee
           ? employeesProvider
           : workersProvider;
 
+  Future<List<Map<String, dynamic>>> _fetchLogs(int? staffId) {
+    final repo = ref.read(staffRepositoryProvider);
+    if (staffId == null) return repo.fetchAllLogsInRange(_from, _to);
+    return repo.fetchStaffLogsInRange(staffId, _from, _to);
+  }
+
   Future<void> _generate() async {
-    if (_selected == null) {
+    if (!_allMode && _selected == null) {
       showAppSnackBar(context, 'اختر الاسم أولاً', isError: true);
       return;
     }
     setState(() => _loading = true);
     try {
-      final logs = await ref
-          .read(staffRepositoryProvider)
-          .fetchStaffLogsInRange(_selected!.id, _from, _to);
-      final List<_DayHours> days = logs.map<_DayHours>((row) {
-        final _DayHours d = _DayHours()
-          ..date = DateTime.parse(row['attendance_date'] as String)
-          ..status = AttendanceMark.fromDb(row['status'] as String?);
-        if (row['check_in_time'] != null) {
-          d.checkIn = DateTime.parse(row['check_in_time'] as String);
+      final AppTimes times = ref.read(appTimesProvider);
+      final List<Map<String, dynamic>> logs = await _fetchLogs(
+        _allMode ? null : _selected!.id,
+      );
+
+      final Map<int, List<Map<String, dynamic>>> byStaff = {};
+      for (final Map<String, dynamic> row in logs) {
+        byStaff
+            .putIfAbsent(row['staff_id'] as int, () => [])
+            .add(row);
+      }
+
+      final List<Staff> allStaff = ref.read(_provider).valueOrNull ?? [];
+      final Map<int, String> names = {
+        for (final Staff s in allStaff) s.id: s.fullName,
+      };
+
+      final List<StaffHoursRow> summary = [];
+      List<StaffHoursDetail>? details;
+
+      final Iterable<int> ids =
+          _allMode ? byStaff.keys : [_selected!.id];
+
+      for (final int id in ids) {
+        final List<Map<String, dynamic>> staffLogs =
+            byStaff[id] ?? const [];
+        int presentDays = 0;
+        double totalHours = 0, totalLate = 0, totalOvertime = 0;
+        final List<StaffHoursDetail> staffDetails = [];
+
+        for (final Map<String, dynamic> row in staffLogs) {
+          final AttendanceMark status =
+              AttendanceMark.fromDb(row['status'] as String?);
+          final DateTime? checkIn = row['check_in_time'] == null
+              ? null
+              : DateTime.parse(row['check_in_time'] as String);
+          final DateTime? checkOut = row['check_out_time'] == null
+              ? null
+              : DateTime.parse(row['check_out_time'] as String);
+          final DateTime date =
+              DateTime.parse(row['attendance_date'] as String);
+
+          double hours = 0, late = 0, overtime = 0;
+          if (checkIn != null && checkOut != null) {
+            final int minutes = checkOut.difference(checkIn).inMinutes;
+            hours = minutes <= 0 ? 0 : minutes / 60;
+          }
+          if (checkIn != null) {
+            final DateTime shiftStart = DateTime(checkIn.year,
+                checkIn.month, checkIn.day, times.staffStart.hour,
+                times.staffStart.minute);
+            final int lateMin = checkIn.difference(shiftStart).inMinutes;
+            late = lateMin <= 0 ? 0 : lateMin / 60;
+          }
+          final double extra = hours - AppConfig.staffShiftHours;
+          overtime = extra <= 0 ? 0 : extra;
+
+          if (status == AttendanceMark.present ||
+              status == AttendanceMark.late) {
+            presentDays++;
+          }
+          totalHours += hours;
+          totalLate += late;
+          totalOvertime += overtime;
+
+          staffDetails.add(StaffHoursDetail(
+            dateLabel: DateFormat('d MMM', 'ar').format(date),
+            statusLabel: status.labelAr,
+            inLabel: checkIn == null
+                ? '-'
+                : DateFormat('hh:mm a').format(checkIn),
+            outLabel: checkOut == null
+                ? '-'
+                : DateFormat('hh:mm a').format(checkOut),
+            hoursLabel: hours.toStringAsFixed(1),
+            lateLabel: late.toStringAsFixed(1),
+            extraLabel: overtime.toStringAsFixed(1),
+          ));
         }
-        if (row['check_out_time'] != null) {
-          d.checkOut = DateTime.parse(row['check_out_time'] as String);
-        }
-        return d;
-      }).toList();
-      setState(() => _days = days);
+
+        final double extraDays =
+            totalOvertime / AppConfig.staffShiftHours;
+        summary.add(StaffHoursRow(
+          name: names[id] ?? '؟',
+          presentDays: presentDays,
+          totalHours: totalHours,
+          lateHours: totalLate,
+          overtimeHours: totalOvertime,
+          extraDays: extraDays,
+        ));
+        if (!_allMode) details = staffDetails;
+      }
+
+      summary.sort((a, b) => b.totalHours.compareTo(a.totalHours));
+      setState(() {
+        _summary = summary;
+        _details = details;
+      });
     } catch (_) {
       if (mounted) {
         showAppSnackBar(context, 'تعذر جلب التقرير', isError: true);
@@ -95,27 +162,57 @@ class _StaffHoursReportScreenState
     }
   }
 
+  Future<void> _exportPdf() async {
+    if (_summary == null || _summary!.isEmpty) return;
+    showLoadingDialog(context);
+    try {
+      final bytes = await PdfService.generateStaffHours(
+        title: 'تقرير ساعات ${widget.category.pluralAr} — '
+            '${DateFormat('d MMM', 'ar').format(_from)} إلى ${DateFormat('d MMM', 'ar').format(_to)}',
+        rows: _summary!,
+        details: _details ?? const [],
+      );
+      final Directory dir = await getTemporaryDirectory();
+      final File file =
+          File('${dir.path}/ساعات_${ExcelService.fileNameStamp()}.pdf');
+      await file.writeAsBytes(bytes);
+      if (mounted) hideLoadingDialog(context);
+      await Share.shareXFiles([XFile(file.path)]);
+    } catch (_) {
+      if (mounted) {
+        hideLoadingDialog(context);
+        showAppSnackBar(context, 'تعذر إنشاء PDF', isError: true);
+      }
+    }
+  }
+
+  Future<void> _exportExcel() async {
+    if (_summary == null || _summary!.isEmpty) return;
+    showLoadingDialog(context);
+    try {
+      final bytes = ExcelService.generateStaffHours(
+        title: 'تقرير ساعات ${widget.category.pluralAr}',
+        rows: _summary!,
+        details: _details ?? const [],
+      );
+      final Directory dir = await getTemporaryDirectory();
+      final File file =
+          File('${dir.path}/ساعات_${ExcelService.fileNameStamp()}.xlsx');
+      await file.writeAsBytes(bytes);
+      if (mounted) hideLoadingDialog(context);
+      await Share.shareXFiles([XFile(file.path)]);
+    } catch (_) {
+      if (mounted) {
+        hideLoadingDialog(context);
+        showAppSnackBar(context, 'تعذر إنشاء Excel', isError: true);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final ThemeData theme = Theme.of(context);
     final staff = ref.watch(_provider);
-    final AppTimes times = ref.watch(appTimesProvider);
-
-    double totalHours = 0, totalLate = 0, totalOvertime = 0;
-    int presentDays = 0;
-    if (_days != null) {
-      for (final _DayHours d in _days!) {
-        totalHours += d.hours;
-        totalLate += d.lateHours(times.staffStart);
-        totalOvertime += d.overtimeHours;
-        if (d.status == AttendanceMark.present ||
-            d.status == AttendanceMark.late) {
-          presentDays++;
-        }
-      }
-    }
-    final double extraDays =
-        (totalOvertime / AppConfig.staffShiftHours);
 
     return Scaffold(
       appBar: AppBar(title: Text('تقرير ساعات ${widget.category.pluralAr}')),
@@ -125,21 +222,32 @@ class _StaffHoursReportScreenState
         data: (list) => ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            DropdownButtonFormField<Staff>(
-              value: _selected,
-              isExpanded: true,
-              decoration: InputDecoration(
-                labelText: 'اختر الاسم (${widget.category.labelAr})',
-                prefixIcon: const Icon(Icons.person_rounded),
-              ),
-              items: list
-                  .map((s) => DropdownMenuItem(
-                        value: s,
-                        child: Text(s.fullName),
-                      ))
-                  .toList(),
-              onChanged: (v) => setState(() => _selected = v),
+            SegmentedButton<bool>(
+              segments: const [
+                ButtonSegment(value: false, label: Text('موظف محدد')),
+                ButtonSegment(value: true, label: Text('جميع الموظفين')),
+              ],
+              selected: {_allMode},
+              onSelectionChanged: (s) =>
+                  setState(() => _allMode = s.first),
             ),
+            const SizedBox(height: 14),
+            if (!_allMode)
+              DropdownButtonFormField<Staff>(
+                value: _selected,
+                isExpanded: true,
+                decoration: InputDecoration(
+                  labelText: 'اختر الاسم (${widget.category.labelAr})',
+                  prefixIcon: const Icon(Icons.person_rounded),
+                ),
+                items: list
+                    .map((s) => DropdownMenuItem(
+                          value: s,
+                          child: Text(s.fullName),
+                        ))
+                    .toList(),
+                onChanged: (v) => setState(() => _selected = v),
+              ),
             const SizedBox(height: 12),
             Row(
               children: [
@@ -149,8 +257,8 @@ class _StaffHoursReportScreenState
                       final DateTime? picked = await showDatePicker(
                         context: context,
                         initialDate: _from,
-                        firstDate:
-                            DateTime.now().subtract(const Duration(days: 365)),
+                        firstDate: DateTime.now()
+                            .subtract(const Duration(days: 365)),
                         lastDate: DateTime.now(),
                       );
                       if (picked != null) setState(() => _from = picked);
@@ -169,8 +277,8 @@ class _StaffHoursReportScreenState
                       final DateTime? picked = await showDatePicker(
                         context: context,
                         initialDate: _to,
-                        firstDate:
-                            DateTime.now().subtract(const Duration(days: 365)),
+                        firstDate: DateTime.now()
+                            .subtract(const Duration(days: 365)),
                         lastDate: DateTime.now(),
                       );
                       if (picked != null) setState(() => _to = picked);
@@ -194,100 +302,59 @@ class _StaffHoursReportScreenState
               label: const Text('احسب الساعات'),
             ),
             const SizedBox(height: 20),
-            if (_days != null) ...[
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    children: [
-                      _totalRow(theme, 'أيام الدوام', presentDays.toString()),
-                      _totalRow(theme,
-                          'إجمالي الساعات', totalHours.toStringAsFixed(1)),
-                      _totalRow(theme,
-                          'ساعات التأخير', totalLate.toStringAsFixed(1)),
-                      _totalRow(theme, 'ساعات إضافية',
-                          totalOvertime.toStringAsFixed(1)),
-                      _totalRow(theme,
-                          'تعادل أيام عمل إضافية (كل ${AppConfig.staffShiftHours} ساعة)',
-                          extraDays.toStringAsFixed(2)),
-                    ],
+            if (_summary != null && _summary!.isNotEmpty) ...[
+              Row(
+                children: [
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: _exportPdf,
+                      icon: const Icon(Icons.picture_as_pdf_rounded),
+                      label: const Text('PDF'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: FilledButton.tonalIcon(
+                      onPressed: _exportExcel,
+                      icon: const Icon(Icons.table_view_rounded),
+                      label: const Text('Excel'),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              ..._summary!.map(
+                (r) => Card(
+                  child: ListTile(
+                    dense: true,
+                    leading: CircleAvatar(
+                      backgroundColor:
+                          theme.colorScheme.primaryContainer,
+                      child: Text(
+                        r.name.isNotEmpty ? r.name.substring(0, 1) : '?',
+                        style: TextStyle(
+                            color: theme.colorScheme.primary,
+                            fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                    title: Text(r.name,
+                        style: const TextStyle(
+                            fontWeight: FontWeight.w600, fontSize: 14)),
+                    subtitle: Text(
+                      'أيام: ${r.presentDays} • ساعات: ${r.totalHours.toStringAsFixed(1)} • '
+                      'تأخير: ${r.lateHours.toStringAsFixed(1)} • '
+                      'إضافي: ${r.overtimeHours.toStringAsFixed(1)} • '
+                      'تعادل: ${r.extraDays.toStringAsFixed(2)} يوم',
+                      style: TextStyle(
+                          fontSize: 11.5, color: theme.hintColor),
+                    ),
                   ),
                 ),
               ),
-              const SizedBox(height: 14),
-              ..._days!.map((d) => Card(
-                    child: ListTile(
-                      dense: true,
-                      leading: Icon(
-                        switch (d.status) {
-                          AttendanceMark.present => Icons.check_circle_rounded,
-                          AttendanceMark.late => Icons.schedule_rounded,
-                          AttendanceMark.absent => Icons.cancel_rounded,
-                          null => Icons.help_outline_rounded,
-                        },
-                        color: switch (d.status) {
-                          AttendanceMark.present => const Color(0xFF16A34A),
-                          AttendanceMark.late => const Color(0xFFF59E0B),
-                          AttendanceMark.absent => const Color(0xFFDC2626),
-                          null => theme.hintColor,
-                        },
-                      ),
-                      title: Text(
-                        d.date == null
-                            ? ''
-                            : DateFormat('EEEE d MMMM', 'ar').format(d.date!),
-                        style: const TextStyle(
-                            fontSize: 14, fontWeight: FontWeight.w600),
-                      ),
-                      subtitle: Text(
-                        d.checkIn == null || d.checkOut == null
-                            ? 'بدون تسجيل وقت'
-                            : 'دخول ${DateFormat('hh:mm a', 'ar').format(d.checkIn!)} — '
-                                'انصراف ${DateFormat('hh:mm a', 'ar').format(d.checkOut!)}',
-                        style: TextStyle(
-                            fontSize: 12, color: theme.hintColor),
-                      ),
-                      trailing: Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text('${d.hours.toStringAsFixed(1)} ساعة',
-                              style: const TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 13)),
-                          if (d.lateHours(times.staffStart) > 0)
-                            Text(
-                                'تأخير ${d.lateHours(times.staffStart).toStringAsFixed(1)}',
-                                style: const TextStyle(
-                                    fontSize: 11,
-                                    color: Color(0xFFDC2626))),
-                          if (d.overtimeHours > 0)
-                            Text(
-                                'إضافي ${d.overtimeHours.toStringAsFixed(1)}',
-                                style: const TextStyle(
-                                    fontSize: 11,
-                                    color: Color(0xFF16A34A))),
-                        ],
-                      ),
-                    ),
-                  )),
             ],
           ],
         ),
       ),
     );
   }
-
-  Widget _totalRow(ThemeData theme, String label, String value) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 6),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(label, style: theme.textTheme.bodyMedium),
-            Text(value,
-                style: theme.textTheme.titleSmall
-                    ?.copyWith(fontWeight: FontWeight.w700)),
-          ],
-        ),
-      );
 }
