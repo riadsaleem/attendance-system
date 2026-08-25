@@ -53,7 +53,7 @@ class _LicenseCodesScreenState extends ConsumerState<LicenseCodesScreen> {
         ],
       ),
     );
-    if (ownerName == null || ownerName.isEmpty) return;
+    if (ownerName == null || ownerName.isEmpty || !mounted) return;
 
     showLoadingDialog(context);
     try {
@@ -75,7 +75,7 @@ class _LicenseCodesScreenState extends ConsumerState<LicenseCodesScreen> {
                 const SizedBox(height: 10),
                 SelectableText(
                   code,
-                  style: theme_bigCode(context),
+                  style: bigCodeStyle(context),
                 ),
               ],
             ),
@@ -96,7 +96,7 @@ class _LicenseCodesScreenState extends ConsumerState<LicenseCodesScreen> {
     }
   }
 
-  TextStyle theme_bigCode(BuildContext context) =>
+  TextStyle bigCodeStyle(BuildContext context) =>
       Theme.of(context).textTheme.titleMedium!.copyWith(
             fontWeight: FontWeight.w700,
             letterSpacing: 1.5,
