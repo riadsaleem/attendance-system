@@ -9,6 +9,7 @@ import '../../../core/widgets/state_views.dart';
 import '../../auth/domain/user_profile.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../../staff/domain/staff_models.dart';
+import '../../staff/presentation/branches_screen.dart';
 import '../../staff/presentation/staff_screen.dart';
 import '../../university/presentation/university_screen.dart';
 import '../domain/dashboard_models.dart';
@@ -109,18 +110,31 @@ class _SectionGrid extends StatelessWidget {
   Widget build(BuildContext context) {
     final bool staffOnly = profile?.isStaffOnly ?? false;
     final bool university = profile?.isUniversity ?? false;
+    final String? orgType = profile?.orgType;
 
     final List<_SectionCardData> sections = [
       _SectionCardData(
-        title: 'الموظفون',
-        subtitle: 'إدارة الموظفين وتفاصيلهم',
+        title: staffOnly ? 'الموظفون' : 'الموظفون',
+        subtitle: staffOnly
+            ? (profile?.orgName ?? 'إدارة وتحضير الموظفين')
+            : 'إدارة الموظفين وتفاصيلهم',
         icon: Icons.badge_rounded,
         color: const Color(0xFF0EA5E9),
         onTap: () => _openStaff(context, StaffCategory.employee),
       ),
+      if (orgType == 'company')
+        _SectionCardData(
+          title: 'الفروع',
+          subtitle: 'إدارة فروع المؤسسة',
+          icon: Icons.account_tree_rounded,
+          color: const Color(0xFFEC4899),
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const BranchesScreen()),
+          ),
+        ),
       if (!staffOnly)
         _SectionCardData(
-          title: 'الطلاب الجامعين',
+          title: university ? 'الكليات والتخصصات' : 'الطلاب الجامعين',
           subtitle: university ? 'الكليات والتخصصات' : 'قيد الإنشاء',
           icon: Icons.menu_book_rounded,
           color: const Color(0xFFF59E0B),
