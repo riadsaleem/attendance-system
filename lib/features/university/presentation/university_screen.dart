@@ -73,12 +73,30 @@ class UniversityScreen extends ConsumerWidget {
                                 leading: const Icon(Icons.menu_book_rounded,
                                     size: 20),
                                 title: Text(m.name),
-                                trailing: IconButton(
-                                  icon: Icon(Icons.delete_outline,
-                                      size: 18,
-                                      color: theme.colorScheme.error),
-                                  onPressed: () => _deleteMajor(context, ref,
-                                      major: m),
+                                subtitle: Text(
+                                    '${m.yearsCount} ${m.yearsCount <= 3 ? "دورات" : "سنوات"}',
+                                    style: TextStyle(
+                                        fontSize: 12,
+                                        color: theme.hintColor)),
+                                trailing: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    IconButton(
+                                      tooltip: 'تعديل عدد السنوات',
+                                      icon: const Icon(Icons.edit_rounded,
+                                          size: 18),
+                                      onPressed: () => _editMajorYears(
+                                          context, ref,
+                                          major: m),
+                                    ),
+                                    IconButton(
+                                      icon: Icon(Icons.delete_outline,
+                                          size: 18,
+                                          color: theme.colorScheme.error),
+                                      onPressed: () => _deleteMajor(context, ref,
+                                          major: m),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ),
@@ -204,6 +222,58 @@ class UniversityScreen extends ConsumerWidget {
     } catch (_) {
       if (context.mounted) {
         showAppSnackBar(context, 'تعذر الحذف', isError: true);
+      }
+    }
+  }
+
+  Future<void> _editMajorYears(
+    BuildContext context,
+    WidgetRef ref, {
+    required Major major,
+  }) async {
+    int years = major.yearsCount;
+    final int? result = await showDialog<int>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: Text('سنوات ${major.name}'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('عدد السنوات الدراسية للتخصص:'),
+              const SizedBox(height: 10),
+              DropdownButtonFormField<int>(
+                value: years,
+                items: List.generate(8, (i) => i + 1)
+                    .map((y) => DropdownMenuItem(
+                        value: y, child: Text('$y سنوات')))
+                    .toList(),
+                onChanged: (v) => setState(() => years = v ?? 4),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('إلغاء'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, years),
+              child: const Text('حفظ'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (result == null || result == major.yearsCount) return;
+    try {
+      await ref
+          .read(universityRepositoryProvider)
+          .updateMajorYears(major.id, result);
+      ref.invalidate(majorsProvider);
+    } catch (_) {
+      if (context.mounted) {
+        showAppSnackBar(context, 'تعذر الحفظ', isError: true);
       }
     }
   }

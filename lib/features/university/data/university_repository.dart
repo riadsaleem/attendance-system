@@ -32,4 +32,7 @@ class UniversityRepository {
 
   Future<void> deleteMajor(int id) =>
       _client.from('majors').delete().eq('id', id);
+
+  Future<void> updateMajorYears(int id, int yearsCount) =>
+      _client.from('majors').update({'years_count': yearsCount}).eq('id', id);
 }
