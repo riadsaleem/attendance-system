@@ -282,7 +282,8 @@ class _StudentsScreenState extends ConsumerState<StudentsScreen> {
     final bool confirmed = await showConfirmDialog(
       context,
       title: 'حذف طالب',
-      message: 'هل أنت متأكد من حذف "$student.fullName" وجميع سجلات حضوره؟',
+                      message:
+                          'هل أنت متأكد من حذف "${student.fullName}" وجميع سجلات حضوره؟',
       confirmLabel: 'حذف',
       destructive: true,
     );

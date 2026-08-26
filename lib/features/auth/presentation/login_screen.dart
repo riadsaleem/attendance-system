@@ -115,8 +115,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         borderRadius: BorderRadius.circular(26),
                       ),
                       child: Icon(
-                        Icons.fact_check_rounded,
-                        size: 48,
+                        Icons.fingerprint_rounded,
+                        size: 56,
                         color: theme.colorScheme.primary,
                       ),
                     ),

@@ -10,6 +10,7 @@ class UserProfile {
     this.orgType,
     this.trialEndsAt,
     this.licensedUntil,
+    this.avatarUrl,
   });
 
   final String id;
@@ -20,6 +21,7 @@ class UserProfile {
   final String? orgType;
   final DateTime? trialEndsAt;
   final DateTime? licensedUntil;
+  final String? avatarUrl;
 
   bool get isAdmin => role == UserRole.admin;
 
@@ -68,5 +70,6 @@ class UserProfile {
         licensedUntil: json['licensed_until'] == null
             ? null
             : DateTime.parse(json['licensed_until'] as String),
+        avatarUrl: json['avatar_url'] as String?,
       );
 }

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
@@ -139,16 +140,21 @@ class ZkClient {
   }
 
   final List<int> _rxBuffer = [];
+  StreamIterator<Uint8List>? _rxIterator;
 
   Future<Uint8List> _readBytes(Socket socket, int count) async {
+    _rxIterator ??= StreamIterator<Uint8List>(socket);
     final Stopwatch watch = Stopwatch()..start();
     while (_rxBuffer.length < count) {
       if (watch.elapsed > timeout) {
         throw ZkException('انتهت مهلة الاتصال بالجهاز');
       }
-      final List<int> chunk = await socket.first
-          .timeout(timeout, onTimeout: () => throw ZkException('مهلة القراءة'));
-      _rxBuffer.addAll(chunk);
+      final bool hasMore = await _rxIterator!.moveNext().timeout(
+            timeout,
+            onTimeout: () => throw ZkException('مهلة القراءة'),
+          );
+      if (!hasMore) throw ZkException('انقطع الاتصال بالجهاز');
+      _rxBuffer.addAll(_rxIterator!.current);
     }
     final Uint8List result = Uint8List.fromList(_rxBuffer.sublist(0, count));
     _rxBuffer.removeRange(0, count);
@@ -156,6 +162,9 @@ class ZkClient {
   }
 
   Future<void> connect(String host, {int port = 4370}) async {
+    await _rxIterator?.cancel();
+    _rxIterator = null;
+    _rxBuffer.clear();
     try {
       _socket = await Socket.connect(
         host,
@@ -226,9 +235,12 @@ class ZkClient {
       await _socket?.flush();
       await _socket?.close();
     } finally {
+      await _rxIterator?.cancel();
+      _rxIterator = null;
       _socket?.destroy();
       _socket = null;
       _sessionId = 0;
+      _rxBuffer.clear();
     }
   }
 

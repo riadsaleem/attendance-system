@@ -46,7 +46,7 @@ class PdfService {
                   width: 110,
                   height: 110,
                   padding: const pw.EdgeInsets.all(4),
-                  child: _pieChart(data, regular),
+                  child: _pieChart(data, regular, bold),
                 ),
               ],
             ),
@@ -144,34 +144,42 @@ class PdfService {
       ],
     );
   }
+  static pw.Widget _pieChart(ReportData data, pw.Font regular, pw.Font bold) {
+    final int total =
+        data.summary.present + data.summary.late + data.summary.absent;
+    if (total == 0) return pw.Container();
 
-  static pw.Widget _pieChart(ReportData data, pw.Font regular) {    final List<pw.PieDataSet> slices = [
+    double pct(int v) => v / total * 100;
+
+    final List<pw.PieDataSet> slices = [
       if (data.summary.present > 0)
         pw.PieDataSet(
-          value: data.summary.present.toDouble(),
+          value: pct(data.summary.present),
           color: PdfColor.fromHex('#16A34A'),
           innerRadius: 5,
-          legendStyle: pw.TextStyle(font: regular, fontSize: 7),
+          legendPosition: pw.PieLegendPosition.inside,
+          legendStyle: pw.TextStyle(
+              font: bold, fontSize: 7, color: PdfColors.white),
         ),
       if (data.summary.late > 0)
         pw.PieDataSet(
-          value: data.summary.late.toDouble(),
+          value: pct(data.summary.late),
           color: PdfColor.fromHex('#F59E0B'),
           innerRadius: 5,
-          legendStyle: pw.TextStyle(font: regular, fontSize: 7),
+          legendPosition: pw.PieLegendPosition.inside,
+          legendStyle: pw.TextStyle(
+              font: bold, fontSize: 7, color: PdfColors.white),
         ),
       if (data.summary.absent > 0)
         pw.PieDataSet(
-          value: data.summary.absent.toDouble(),
+          value: pct(data.summary.absent),
           color: PdfColor.fromHex('#DC2626'),
           innerRadius: 5,
-          legendStyle: pw.TextStyle(font: regular, fontSize: 7),
+          legendPosition: pw.PieLegendPosition.inside,
+          legendStyle: pw.TextStyle(
+              font: bold, fontSize: 7, color: PdfColors.white),
         ),
     ];
-
-    if (slices.isEmpty) {
-      return pw.Container();
-    }
 
     return pw.Chart(
       grid: pw.PieGrid(),
@@ -229,7 +237,7 @@ class PdfService {
       crossAxisAlignment: pw.CrossAxisAlignment.center,
       children: [
         pw.Text(
-          'تم إنشاء هذا التقرير بواسطة تطبيق نظام الحضور والغياب',
+          'يتم إنشاء هذا التقرير بواسطة تطبيق نظام متتبع البصمة',
           style: pw.TextStyle(font: regular, fontSize: 9,
               color: PdfColors.grey600),
         ),

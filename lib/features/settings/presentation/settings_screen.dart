@@ -1,9 +1,16 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' show FileOptions;
 
 import '../../../core/config/app_config.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../core/providers/supabase_provider.dart';
 import '../../../core/theme/theme_provider.dart';
+import '../../../core/utils/app_logger.dart';
 import '../../../core/widgets/app_snack_bar.dart';
 import '../../../core/widgets/app_text_field.dart';
 import '../../../core/widgets/dialogs.dart';
@@ -26,6 +33,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final AsyncValue<UserProfile?> profile = ref.watch(currentProfileProvider);
     final ThemeMode themeMode = ref.watch(themeProvider);
     final UserProfile? user = profile.valueOrNull;
+    final bool profileLoading =
+        profile.isLoading || (profile.hasValue && profile.value == null);
 
     return Scaffold(
       appBar: AppBar(title: const Text('الإعدادات')),
@@ -37,18 +46,46 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               padding: const EdgeInsets.all(16),
               child: Row(
                 children: [
-                  CircleAvatar(
-                    radius: 30,
-                    backgroundColor: theme.colorScheme.primaryContainer,
-                    child: Text(
-                      (user?.fullName.isNotEmpty ?? false)
-                          ? user!.fullName.substring(0, 1)
-                          : '?',
-                      style: TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.w700,
-                          color: theme.colorScheme.primary),
-                    ),
+                  Stack(
+                    children: [
+                      CircleAvatar(
+                        radius: 30,
+                        backgroundColor: theme.colorScheme.primaryContainer,
+                        backgroundImage: (user?.avatarUrl != null &&
+                                user!.avatarUrl!.isNotEmpty)
+                            ? NetworkImage(user.avatarUrl!)
+                            : null,
+                        child: (user?.avatarUrl != null &&
+                                user!.avatarUrl!.isNotEmpty)
+                            ? null
+                            : Text(
+                                (user?.fullName.isNotEmpty ?? false)
+                                    ? user!.fullName.substring(0, 1)
+                                    : '?',
+                                style: TextStyle(
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.w700,
+                                    color: theme.colorScheme.primary),
+                              ),
+                      ),
+                      if (user != null)
+                        PositionedDirectional(
+                          end: 0,
+                          bottom: 0,
+                          child: InkWell(
+                            onTap: profileLoading ? null : _changeAvatar,
+                            child: Container(
+                              padding: const EdgeInsets.all(4),
+                              decoration: BoxDecoration(
+                                color: theme.colorScheme.primary,
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(Icons.camera_alt_rounded,
+                                  size: 14, color: Colors.white),
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
                   const SizedBox(width: 14),
                   Expanded(
@@ -194,6 +231,50 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     );
   }
 
+  Future<void> _changeAvatar() async {
+    try {
+      final ImagePicker picker = ImagePicker();
+      final XFile? image = await picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 512,
+        maxHeight: 512,
+        imageQuality: 80,
+      );
+      if (image == null || !mounted) return;
+
+      showLoadingDialog(context);
+      final client = ref.read(supabaseClientProvider);
+      final String uid = client.auth.currentUser!.id;
+      final Uint8List bytes = await image.readAsBytes();
+      final String path = '$uid/avatar.jpg';
+
+      await client.storage.from('avatars').uploadBinary(
+            path,
+            bytes,
+            fileOptions: const FileOptions(upsert: true),
+          );
+      final String baseUrl =
+          client.storage.from('avatars').getPublicUrl(path);
+      final String url =
+          '$baseUrl?v=${DateTime.now().millisecondsSinceEpoch}';
+
+      await client
+          .from('profiles')
+          .update({'avatar_url': url}).eq('id', uid);
+      ref.invalidate(currentProfileProvider);
+      if (mounted) {
+        hideLoadingDialog(context);
+        showAppSnackBar(context, 'تم تحديث الصورة الشخصية ✅');
+      }
+    } catch (e) {
+      AppLog.error('avatar upload failed', e);
+      if (mounted) {
+        hideLoadingDialog(context);
+        showAppSnackBar(context, 'تعذر تحديث الصورة', isError: true);
+      }
+    }
+  }
+
   Future<void> _editName() async {
     final UserProfile? user = ref.read(currentProfileProvider).value;
     if (user == null) return;
@@ -311,6 +392,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     );
     if (confirmed && mounted) {
       await ref.read(authRepositoryProvider).signOut();
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('onboarded', false);
     }
   }
 }

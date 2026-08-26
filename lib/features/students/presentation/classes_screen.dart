@@ -254,7 +254,7 @@ class ClassesScreen extends ConsumerWidget {
       context,
       title: 'حذف مرحلة',
       message:
-          'سيتم حذف "$grade.name" وجميع صفوفها وطلابها وسجلات حضورهم نهائياً!',
+          'سيتم حذف "${grade.name}" وجميع صفوفها وطلابها وسجلات حضورهم نهائياً!',
       confirmLabel: 'حذف نهائي',
       destructive: true,
     );

@@ -82,7 +82,11 @@ class ExcelService {
         .replaceAll(RegExp(r'[\\/*?:\[\]]'), '-')
         .trim();
     if (clean.isEmpty) clean = 'تقرير';
-    if (clean.length > 28) clean = clean.substring(0, 28);
+    if (clean.length > 28) {
+      clean = clean.substring(0, 28);
+      final int lastSpace = clean.lastIndexOf(' ');
+      if (lastSpace > 10) clean = clean.substring(0, lastSpace);
+    }
     return clean;
   }
 
@@ -145,7 +149,7 @@ class ExcelService {
 
     sheet.appendRow([TextCellValue('')]);
     sheet.appendRow([
-      TextCellValue('تطبيق متتبع البصمة — تطوير: رياض سليم'),
+      TextCellValue('يتم إنشاء هذا التقرير بواسطة تطبيق نظام متتبع البصمة — تطوير: رياض سليم'),
     ]);
 
     final List<int>? bytes = excel.encode();

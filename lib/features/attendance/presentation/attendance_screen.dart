@@ -269,22 +269,23 @@ class _AttendanceScreenState extends ConsumerState<AttendanceScreen> {
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-          child: DropdownButtonFormField<int>(
-            value: effMajor,
+          child: DropdownButtonFormField<String>(
+            value: '$effMajor-$effYear',
             isExpanded: true,
             decoration: const InputDecoration(
               prefixIcon: Icon(Icons.menu_book_rounded),
             ),
             items: groups
                 .map((g) => DropdownMenuItem(
-                      value: g.$1,
+                      value: '${g.$1}-${g.$2}',
                       child: Text(groupLabel(g)),
                     ))
                 .toList(),
             onChanged: (v) => setState(() {
-              _uniMajorId = v;
-              _uniYear =
-                  groups.where((g) => g.$1 == v).map((g) => g.$2).first;
+              if (v == null) return;
+              final parts = v.split('-');
+              _uniMajorId = int.tryParse(parts[0]);
+              _uniYear = int.tryParse(parts[1]);
               _edits.clear();
             }),
           ),
