@@ -17,8 +17,8 @@ class OnboardingScreen extends ConsumerStatefulWidget {
   ConsumerState<OnboardingScreen> createState() => _OnboardingScreenState();
 }
 
-class _OrgType {
-  const _OrgType(this.type, this.label, this.subtitle, this.placeholder,
+class OrgType {
+  const OrgType(this.type, this.label, this.subtitle, this.placeholder,
       this.icon, this.color);
   final String type;
   final String label;
@@ -28,36 +28,36 @@ class _OrgType {
   final Color color;
 }
 
-const List<_OrgType> kOrgTypes = [
-  _OrgType(
+const List<OrgType> _kOrgTypes = [
+  OrgType(
       'staff_only',
       'إدارة موظفين فقط',
       'للمحلات والمكاتب والمراكز الصغيرة',
       'اكتب اسم المركز أو المحل أو المكتب',
       Icons.badge_rounded,
       Color(0xFF0EA5E9)),
-  _OrgType(
+  OrgType(
       'school',
       'مدرسة',
       'إدارة طلاب وصفوف وموظفين',
       'اكتب اسم المدرسة',
       Icons.school_rounded,
       Color(0xFF16A34A)),
-  _OrgType(
+  OrgType(
       'institute',
       'معهد',
       'إدارة موظفين وتخصصات وطلاب',
       'اكتب اسم المعهد',
       Icons.cast_for_education_rounded,
       Color(0xFF06B6D4)),
-  _OrgType(
+  OrgType(
       'university',
       'جامعة',
       'إدارة كليات وتخصصات وموظفين وطلاب',
       'اكتب اسم الجامعة أو الكلية',
       Icons.account_balance_rounded,
       Color(0xFF8B5CF6)),
-  _OrgType(
+  OrgType(
       'company',
       'مؤسسة أو شركة',
       'إدارة الفروع وموظفيها',
@@ -74,7 +74,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   String _systemType = 'years';
   bool _saving = false;
 
-  _OrgType? get _type => _selected == -1 ? null : kOrgTypes[_selected];
+  OrgType? get _type => _selected == -1 ? null : _kOrgTypes[_selected];
 
   bool get _needsMajors =>
       _type != null && (_type!.type == 'institute' || _type!.type == 'university');
@@ -171,8 +171,8 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                         ?.copyWith(color: theme.hintColor),
                   ),
                   const SizedBox(height: 18),
-                  ...List.generate(kOrgTypes.length, (i) {
-                    final _OrgType t = kOrgTypes[i];
+                  ...List.generate(_kOrgTypes.length, (i) {
+                    final OrgType t = _kOrgTypes[i];
                     final bool selected = _selected == i;
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 10),
@@ -237,7 +237,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                             child: AppTextField(
                               controller: _name,
                               label: 'اسم الجهة *',
-                              hint: kOrgTypes[_selected].placeholder,
+                              hint: _kOrgTypes[_selected].placeholder,
                               prefixIcon: Icons.store_rounded,
                             ),
                           ),
