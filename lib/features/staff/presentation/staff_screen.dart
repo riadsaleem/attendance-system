@@ -9,6 +9,7 @@ import '../../auth/domain/user_profile.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../domain/staff_models.dart';
 import '../providers/staff_providers.dart';
+import 'branches_screen.dart';
 import 'staff_attendance_screen.dart';
 import 'staff_form_screen.dart';
 
@@ -40,6 +41,13 @@ class _StaffScreenState extends ConsumerState<StaffScreen> {
       appBar: AppBar(
         title: Text(widget.category.pluralAr),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.account_tree_rounded),
+            tooltip: 'الفروع',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const BranchesScreen()),
+            ),
+          ),
           IconButton(
             icon: const Icon(Icons.fact_check_rounded),
             tooltip: 'تسجيل الحضور',

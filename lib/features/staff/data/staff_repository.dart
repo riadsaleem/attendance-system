@@ -27,6 +27,16 @@ class StaffRepository {
 
   Future<void> delete(int id) => _client.from('staff').delete().eq('id', id);
 
+  Future<List<Map<String, dynamic>>> fetchBranches() async {
+    return await _client.from('branches').select().order('name');
+  }
+
+  Future<void> insertBranch(String name) =>
+      _client.from('branches').insert({'name': name});
+
+  Future<void> deleteBranch(int id) =>
+      _client.from('branches').delete().eq('id', id);
+
   Future<Map<int, Map<String, dynamic>>> fetchMarksForDate(DateTime date) async {
     final rows = await _client
         .from('staff_attendance')

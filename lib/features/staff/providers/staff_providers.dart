@@ -25,3 +25,8 @@ final staffMarksForDateProvider =
         (ref, date) {
   return ref.watch(staffRepositoryProvider).fetchMarksForDate(date);
 });
+
+final branchesProvider = FutureProvider.autoDispose<List<Map<String, dynamic>>>(
+    (ref) {
+  return ref.watch(staffRepositoryProvider).fetchBranches();
+});

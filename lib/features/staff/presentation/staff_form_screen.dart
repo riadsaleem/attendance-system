@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/widgets/app_snack_bar.dart';
 import '../../../core/widgets/app_text_field.dart';
+import '../../auth/providers/auth_providers.dart';
 import '../domain/staff_models.dart';
 import '../providers/staff_providers.dart';
 
@@ -30,7 +31,20 @@ class _StaffFormScreenState extends ConsumerState<StaffFormScreen> {
       TextEditingController(text: widget.existing?.phone ?? '');
   late final TextEditingController _fingerprint =
       TextEditingController(text: widget.existing?.fingerprintId ?? '');
+  int? _branchId;
   bool _saving = false;
+
+  bool get _noIdCap {
+    final String? orgType =
+        ref.read(currentProfileProvider).valueOrNull?.orgType;
+    return orgType == 'staff_only' || orgType == 'company';
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _branchId = widget.existing?.branchId;
+  }
 
   @override
   void dispose() {
@@ -53,6 +67,7 @@ class _StaffFormScreenState extends ConsumerState<StaffFormScreen> {
       phone: _phone.text.trim().isEmpty ? null : _phone.text.trim(),
       fingerprintId:
           _fingerprint.text.trim().isEmpty ? null : _fingerprint.text.trim(),
+      branchId: _branchId,
     );
 
     try {
@@ -82,6 +97,8 @@ class _StaffFormScreenState extends ConsumerState<StaffFormScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final branches = ref.watch(branchesProvider);
+
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.existing == null
@@ -134,6 +151,41 @@ class _StaffFormScreenState extends ConsumerState<StaffFormScreen> {
                 },
               ),
               const SizedBox(height: 18),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'الفرع',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w500),
+                  ),
+                  const SizedBox(height: 8),
+                  branches.when(
+                    loading: () => const LinearProgressIndicator(),
+                    error: (e, _) => const Text('تعذر تحميل الفروع'),
+                    data: (branchList) =>
+                        DropdownButtonFormField<int?>(
+                          value: _branchId,
+                          isExpanded: true,
+                          decoration: const InputDecoration(
+                            prefixIcon: Icon(Icons.account_tree_rounded),
+                          ),
+                          items: [
+                            const DropdownMenuItem(
+                                value: null, child: Text('الفرع الرئيسي')),
+                            ...branchList.map(
+                              (b) => DropdownMenuItem(
+                                value: b['id'] as int,
+                                child: Text('${b['name']}'),
+                              ),
+                            ),
+                          ],
+                          onChanged: (v) => setState(() => _branchId = v),
+                        ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 18),
               AppTextField(
                 controller: _fingerprint,
                 label: 'رقم البصمة *',
@@ -146,7 +198,7 @@ class _StaffFormScreenState extends ConsumerState<StaffFormScreen> {
                   if (digits.isEmpty) return 'رقم البصمة إجباري';
                   final int? number = int.tryParse(digits);
                   if (number == null) return 'أدخل رقماً صحيحاً';
-                  if (number > 200) {
+                  if (number > 200 && !_noIdCap) {
                     return 'أرقام الموظفين من 0 إلى 200 فقط (201 فأعلى للطلاب)';
                   }
                   return null;

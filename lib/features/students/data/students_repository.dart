@@ -47,7 +47,7 @@ class ClassesRepository {
         .from('classes')
         .select('*, grades(name)')
         .order('grade_id')
-        .order('name');
+        .order('id');
     return rows.map(SchoolClass.fromJson).toList();
   });
 

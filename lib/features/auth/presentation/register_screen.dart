@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/widgets/app_snack_bar.dart';
@@ -43,11 +44,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
             password: _password.text,
             fullName: _name.text.trim(),
           );
+      await _applyPendingOrg();
       if (mounted) {
-        showAppSnackBar(
-          context,
-          'تم إنشاء الحساب بنجاح 🎉',
-        );
+        showAppSnackBar(context, 'تم إنشاء الحساب بنجاح 🎉');
       }
     } on AuthException catch (e) {
       if (mounted) showAppSnackBar(context, _arabicError(e.message), isError: true);
@@ -59,6 +58,21 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  Future<void> _applyPendingOrg() async {
+    try {
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      final String? type = prefs.getString('pending_org_type');
+      final String? name = prefs.getString('pending_org_name');
+      if (type != null && name != null) {
+        await ref
+            .read(authRepositoryProvider)
+            .saveOnboarding(orgName: name, orgType: type);
+        await prefs.remove('pending_org_type');
+        await prefs.remove('pending_org_name');
+      }
+    } catch (_) {}
   }
 
   String _arabicError(String message) {

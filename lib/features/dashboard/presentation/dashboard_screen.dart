@@ -297,27 +297,35 @@ class _ShiftTimesCard extends ConsumerWidget {
 
   Future<void> _editTimes(BuildContext context, WidgetRef ref) async {
     final AppTimes current = ref.read(appTimesProvider);
+    final String? orgType =
+        ref.read(currentProfileProvider).valueOrNull?.orgType;
+    final bool staffOnly = orgType == 'staff_only' || orgType == 'company';
 
-    final String? target = await showDialog<String>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('تعديل وقت الدخول لـ'),
-        actions: [
-          FilledButton.tonal(
-            onPressed: () => Navigator.pop(context, 'student'),
-            child: const Text('الطلاب'),
-          ),
-          FilledButton.tonal(
-            onPressed: () => Navigator.pop(context, 'staff'),
-            child: const Text('الموظفون'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, 'both'),
-            child: const Text('كلاهما'),
-          ),
-        ],
-      ),
-    );
+    String? target;
+    if (staffOnly) {
+      target = 'staff';
+    } else {
+      target = await showDialog<String>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('تعديل وقت الدخول لـ'),
+          actions: [
+            FilledButton.tonal(
+              onPressed: () => Navigator.pop(context, 'student'),
+              child: const Text('الطلاب'),
+            ),
+            FilledButton.tonal(
+              onPressed: () => Navigator.pop(context, 'staff'),
+              child: const Text('الموظفون'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, 'both'),
+              child: const Text('كلاهما'),
+            ),
+          ],
+        ),
+      );
+    }
     if (target == null || !context.mounted) return;
 
     TimeOfDay? school = current.schoolStart;

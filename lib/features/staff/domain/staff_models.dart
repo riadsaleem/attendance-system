@@ -54,6 +54,7 @@ class Staff {
     this.jobTitle,
     this.phone,
     this.fingerprintId,
+    this.branchId,
     this.isActive = true,
   });
 
@@ -63,6 +64,7 @@ class Staff {
   final String? jobTitle;
   final String? phone;
   final String? fingerprintId;
+  final int? branchId;
   final bool isActive;
 
   factory Staff.fromJson(Map<String, dynamic> json) => Staff(
@@ -72,6 +74,7 @@ class Staff {
         jobTitle: json['job_title'] as String?,
         phone: json['phone'] as String?,
         fingerprintId: json['fingerprint_id'] as String?,
+        branchId: json['branch_id'] as int?,
         isActive: (json['is_active'] ?? true) as bool,
       );
 
@@ -81,6 +84,7 @@ class Staff {
         'job_title': jobTitle,
         'phone': phone,
         'fingerprint_id': fingerprintId,
+        'branch_id': branchId,
         'is_active': isActive,
       };
 }

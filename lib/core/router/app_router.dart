@@ -1,5 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../features/assistant/presentation/assistant_screen.dart';
 import '../../features/auth/domain/user_profile.dart';
@@ -19,13 +21,20 @@ import '../../features/students/presentation/students_screen.dart';
 final appRouterProvider = Provider<GoRouter>((ref) {
   final GoRouter router = GoRouter(
     initialLocation: DashboardScreen.routePath,
-    redirect: (context, state) {
+    redirect: (context, state) async {
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      final bool onboarded = prefs.getBool('onboarded') ?? false;
       final bool loggedIn =
           ref.read(authRepositoryProvider).currentSession != null;
       final String location = state.matchedLocation;
       final bool onAuthScreens = location == LoginScreen.routePath ||
           location == RegisterScreen.routePath;
 
+      if (!loggedIn && !onboarded) {
+        return location == OnboardingScreen.routePath
+            ? null
+            : OnboardingScreen.routePath;
+      }
       if (!loggedIn) {
         return onAuthScreens ? null : LoginScreen.routePath;
       }
@@ -120,7 +129,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     ],
   );
 
-  ref.listen(authChangesProvider, (_, __) => router.refresh());
+  ref.listen<AsyncValue<dynamic>>(authChangesProvider, (prev, next) {
+    final dynamic event = next.value?.event;
+    if (event == AuthChangeEvent.tokenRefreshed ||
+        event == AuthChangeEvent.initialSession) {
+      return;
+    }
+    router.refresh();
+  });
   ref.listen(currentProfileProvider, (_, __) => router.refresh());
   return router;
 });
