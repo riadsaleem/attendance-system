@@ -240,7 +240,7 @@ class UniversityScreen extends ConsumerWidget {
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text('عدد السنوات الدراسية للتخصص:'),
+              const Text('عدد السنوات الدراسية للتخصص:'),
               const SizedBox(height: 10),
               DropdownButtonFormField<int>(
                 value: years,

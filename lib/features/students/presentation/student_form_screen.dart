@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/widgets/app_snack_bar.dart';
 import '../../../core/widgets/app_text_field.dart';
 import '../../../core/widgets/state_views.dart';
+import '../../auth/domain/user_profile.dart';
 import '../../auth/providers/auth_providers.dart';
 import '../../university/domain/models.dart';
 import '../../university/providers/university_providers.dart';
@@ -40,6 +41,21 @@ class _StudentFormScreenState extends ConsumerState<StudentFormScreen> {
 
   bool get _university =>
       ref.read(currentProfileProvider).valueOrNull?.isUniversity ?? false;
+
+  bool get _isInstituteCourses {
+    final UserProfile? profile =
+        ref.read(currentProfileProvider).valueOrNull;
+    return profile?.orgType == 'institute' &&
+        profile?.systemType == 'courses';
+  }
+
+  int get _majorYears {
+    final List<Major> majorList = ref.watch(majorsProvider).valueOrNull ?? [];
+    return majorList
+        .where((m) => m.id == _majorId)
+        .map((m) => m.yearsCount)
+        .firstOrNull ?? 4;
+  }
 
   @override
   void initState() {
@@ -241,7 +257,10 @@ class _StudentFormScreenState extends ConsumerState<StudentFormScreen> {
                             child: Text(m.name),
                           ))
                       .toList(),
-                  onChanged: (v) => setState(() => _majorId = v),
+                  onChanged: (v) => setState(() {
+                    _majorId = v;
+                    if (_year != null && _year! > _majorYears) _year = null;
+                  }),
                 ),
               ],
             ),
@@ -249,7 +268,7 @@ class _StudentFormScreenState extends ConsumerState<StudentFormScreen> {
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('السنة الدراسية *',
+                Text(_isInstituteCourses ? 'الدورة *' : 'السنة الدراسية *',
                     style: theme.textTheme.bodyMedium
                         ?.copyWith(fontWeight: FontWeight.w500)),
                 const SizedBox(height: 8),
@@ -259,13 +278,39 @@ class _StudentFormScreenState extends ConsumerState<StudentFormScreen> {
                   decoration: const InputDecoration(
                     prefixIcon: Icon(Icons.format_list_numbered_rounded),
                   ),
-                  items: List.generate(8, (i) => i + 1)
+                  items: List.generate(_majorYears, (i) => i + 1)
                       .map((y) => DropdownMenuItem(
                             value: y,
-                            child: Text('السنة $y'),
+                            child: Text(
+                                '${_isInstituteCourses ? "الدورة" : "السنة"} $y'),
                           ))
                       .toList(),
                   onChanged: (v) => setState(() => _year = v),
+                ),
+              ],
+            ),
+            const SizedBox(height: 18),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('المجموعة',
+                    style: theme.textTheme.bodyMedium
+                        ?.copyWith(fontWeight: FontWeight.w500)),
+                const SizedBox(height: 8),
+                DropdownButtonFormField<String>(
+                  value: _section,
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    prefixIcon: Icon(Icons.groups_rounded),
+                  ),
+                  items: _sections
+                      .map((s) => DropdownMenuItem(
+                            value: s,
+                            child: Text('مجموعة $s'),
+                          ))
+                      .toList(),
+                  onChanged: (v) => setState(() => _section = v),
+                  hint: const Text('اختياري'),
                 ),
               ],
             ),

@@ -8,6 +8,7 @@ class UserProfile {
     this.email,
     this.orgName,
     this.orgType,
+    this.systemType,
     this.trialEndsAt,
     this.licensedUntil,
     this.avatarUrl,
@@ -19,6 +20,7 @@ class UserProfile {
   final String? email;
   final String? orgName;
   final String? orgType;
+  final String? systemType;
   final DateTime? trialEndsAt;
   final DateTime? licensedUntil;
   final String? avatarUrl;
@@ -51,11 +53,13 @@ class UserProfile {
     return trialEndsAt;
   }
 
-  bool get needsOnboarding => orgName == null || orgName!.isEmpty ||
-      orgType == null || orgType!.isEmpty;
+  bool get needsOnboarding =>
+      orgName == null || orgName!.isEmpty || orgType == null || orgType!.isEmpty;
 
-  bool get isStaffOnly => orgType == 'staff_only';
+  bool get isStaffOnly => orgType == 'staff_only' || orgType == 'company';
   bool get isUniversity => orgType == 'university';
+  bool get isInstitute => orgType == 'institute';
+  bool get usesCourses => systemType == 'courses';
 
   factory UserProfile.fromJson(Map<String, dynamic> json) => UserProfile(
         id: json['id'] as String,
@@ -64,6 +68,7 @@ class UserProfile {
         email: json['email'] as String?,
         orgName: json['org_name'] as String?,
         orgType: json['org_type'] as String?,
+        systemType: json['system_type'] as String?,
         trialEndsAt: json['trial_ends_at'] == null
             ? null
             : DateTime.parse(json['trial_ends_at'] as String),
