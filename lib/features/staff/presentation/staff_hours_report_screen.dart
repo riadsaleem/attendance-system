@@ -163,7 +163,7 @@ class _StaffHoursReportScreenState
         ));
         if (!_allMode) {
           details = staffDetails;
-          summaryLines = [
+          _summaryLines = [
             'إجمالي الساعات والدقائق الإضافية التي داومها: ${_fmtDuration(totalOvertime)}',
             'إجمالي الساعات والدقائق الإضافية التي تأخرها: ${_fmtDuration(totalLate)}',
           ];
