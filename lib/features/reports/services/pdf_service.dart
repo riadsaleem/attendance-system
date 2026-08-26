@@ -254,6 +254,7 @@ class PdfService {
     required String title,
     required List<StaffHoursRow> rows,
     List<StaffHoursDetail> details = const [],
+    List<String> summaryLines = const [],
   }) async {
     await _loadFonts();
     final pw.Font regular = _regular!;
@@ -340,6 +341,29 @@ class PdfService {
                   pw.BoxDecoration(color: PdfColor.fromHex('#0E7C66')),
               cellStyle: pw.TextStyle(font: regular, fontSize: 8),
               cellAlignment: pw.Alignment.center,
+            ),
+          ],
+          if (summaryLines.isNotEmpty) ...[
+            pw.SizedBox(height: 14),
+            pw.Container(
+              padding: const pw.EdgeInsets.all(12),
+              decoration: pw.BoxDecoration(
+                color: PdfColor.fromHex('#F2F8F7'),
+                borderRadius:
+                    const pw.BorderRadius.all(pw.Radius.circular(10)),
+              ),
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: summaryLines
+                    .map((line) => pw.Padding(
+                          padding:
+                              const pw.EdgeInsets.symmetric(vertical: 3),
+                          child: pw.Text(line,
+                              style: pw.TextStyle(
+                                  font: bold, fontSize: 10)),
+                        ))
+                    .toList(),
+              ),
             ),
           ],
           pw.SizedBox(height: 10),

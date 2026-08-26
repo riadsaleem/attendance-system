@@ -36,6 +36,22 @@ class _StaffHoursReportScreenState
   bool _loading = false;
   List<StaffHoursRow>? _summary;
   List<StaffHoursDetail>? _details;
+  List<String> _summaryLines = [];
+
+  static String _fmtDuration(double hours) {
+    final int totalMinutes = (hours * 60).round();
+    final int h = totalMinutes ~/ 60;
+    final int m = totalMinutes % 60;
+    if (h == 0) return '$m دقيقة';
+    if (m == 0) return '$h ساعة';
+    return '$h ساعة و $m دقيقة';
+  }
+
+  static String _fmtMinutes(double hours) {
+    final int minutes = (hours * 60).round();
+    if (minutes < 60) return '$minutes دقيقة';
+    return _fmtDuration(hours);
+  }
 
   AutoDisposeFutureProvider<List<Staff>> get _provider =>
       widget.category == StaffCategory.employee
@@ -121,7 +137,7 @@ class _StaffHoursReportScreenState
           totalOvertime += overtime;
 
           staffDetails.add(StaffHoursDetail(
-            dateLabel: DateFormat('d MMM', 'ar').format(date),
+            dateLabel: DateFormat('EEEE d MMMM', 'ar').format(date),
             statusLabel: status.labelAr,
             inLabel: checkIn == null
                 ? '-'
@@ -129,9 +145,9 @@ class _StaffHoursReportScreenState
             outLabel: checkOut == null
                 ? '-'
                 : DateFormat('hh:mm a').format(checkOut),
-            hoursLabel: hours.toStringAsFixed(1),
-            lateLabel: late.toStringAsFixed(1),
-            extraLabel: overtime.toStringAsFixed(1),
+            hoursLabel: _fmtDuration(hours),
+            lateLabel: _fmtMinutes(late),
+            extraLabel: _fmtMinutes(overtime),
           ));
         }
 
@@ -145,7 +161,13 @@ class _StaffHoursReportScreenState
           overtimeHours: totalOvertime,
           extraDays: extraDays,
         ));
-        if (!_allMode) details = staffDetails;
+        if (!_allMode) {
+          details = staffDetails;
+          summaryLines = [
+            'إجمالي الساعات والدقائق الإضافية التي داومها: ${_fmtDuration(totalOvertime)}',
+            'إجمالي الساعات والدقائق الإضافية التي تأخرها: ${_fmtDuration(totalLate)}',
+          ];
+        }
       }
 
       summary.sort((a, b) => b.totalHours.compareTo(a.totalHours));
@@ -190,10 +212,11 @@ class _StaffHoursReportScreenState
     if (_summary == null || _summary!.isEmpty) return;
     showLoadingDialog(context);
     try {
-      final bytes = ExcelService.generateStaffHours(
+      final bytes = await ExcelService.generateStaffHours(
         title: 'تقرير ساعات ${widget.category.pluralAr}',
         rows: _summary!,
         details: _details ?? const [],
+        summaryLines: _summaryLines,
       );
       final Directory dir = await getTemporaryDirectory();
       final File file =

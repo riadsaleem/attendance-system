@@ -97,6 +97,7 @@ class ExcelService {
     required String title,
     required List<StaffHoursRow> rows,
     List<StaffHoursDetail> details = const [],
+    List<String> summaryLines = const [],
   }) {
     final Excel excel = Excel.createExcel();
     final Sheet sheet = excel['Sheet1'];
@@ -144,6 +145,13 @@ class ExcelService {
           TextCellValue(d.lateLabel),
           TextCellValue(d.extraLabel),
         ]);
+      }
+    }
+
+    if (summaryLines.isNotEmpty) {
+      sheet.appendRow([TextCellValue('')]);
+      for (final String line in summaryLines) {
+        sheet.appendRow([TextCellValue(line)]);
       }
     }
 
