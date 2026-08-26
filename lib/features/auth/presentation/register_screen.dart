@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/widgets/app_snack_bar.dart';
@@ -22,6 +22,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   final TextEditingController _email = TextEditingController();
   final TextEditingController _password = TextEditingController();
   final TextEditingController _confirm = TextEditingController();
+  final TextEditingController _code = TextEditingController();
   bool _loading = false;
   bool _obscure = true;
 
@@ -31,6 +32,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     _email.dispose();
     _password.dispose();
     _confirm.dispose();
+    _code.dispose();
     super.dispose();
   }
 
@@ -44,9 +46,16 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
             password: _password.text,
             fullName: _name.text.trim(),
           );
-      await _applyPendingOrg();
+      final DateTime expires =
+          await ref.read(authRepositoryProvider).activateLicense(
+                _code.text.trim(),
+              );
+      await ref.read(authRepositoryProvider).applyPendingSetup();
       if (mounted) {
-        showAppSnackBar(context, 'تم إنشاء الحساب بنجاح 🎉');
+        showAppSnackBar(
+          context,
+          'تم إنشاء الحساب وتفعيله ✅ — صالح حتى ${DateFormat('yyyy/MM/dd').format(expires)}',
+        );
       }
     } on AuthException catch (e) {
       if (mounted) showAppSnackBar(context, _arabicError(e.message), isError: true);
@@ -58,21 +67,6 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     } finally {
       if (mounted) setState(() => _loading = false);
     }
-  }
-
-  Future<void> _applyPendingOrg() async {
-    try {
-      final SharedPreferences prefs = await SharedPreferences.getInstance();
-      final String? type = prefs.getString('pending_org_type');
-      final String? name = prefs.getString('pending_org_name');
-      if (type != null && name != null) {
-        await ref
-            .read(authRepositoryProvider)
-            .saveOnboarding(orgName: name, orgType: type);
-        await prefs.remove('pending_org_type');
-        await prefs.remove('pending_org_name');
-      }
-    } catch (_) {}
   }
 
   String _arabicError(String message) {
@@ -164,6 +158,20 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                       validator: (v) {
                         if ((v ?? '').length < 6) {
                           return 'كلمة المرور يجب أن تكون 6 أحرف على الأقل';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 20),
+                    AppTextField(
+                      controller: _code,
+                      label: 'كود التفعيل *',
+                      hint: 'MTB-XXXX-XXXX-XXXX — من المطور',
+                      prefixIcon: Icons.key_rounded,
+                      textInputAction: TextInputAction.next,
+                      validator: (v) {
+                        if ((v ?? '').trim().isEmpty) {
+                          return 'كود التفعيل إجباري لإنشاء الحساب';
                         }
                         return null;
                       },

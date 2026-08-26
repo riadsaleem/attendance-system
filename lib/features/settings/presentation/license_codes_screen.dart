@@ -31,36 +31,71 @@ class _LicenseCodesScreenState extends ConsumerState<LicenseCodesScreen> {
 
   Future<void> _create() async {
     final TextEditingController name = TextEditingController();
-    final String? ownerName = await showDialog<String>(
+    int durationDays = 365;
+
+    final (String?, int?)? result = await showDialog<
+        (String?, int?)>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('كود تفعيل جديد'),
-        content: AppTextField(
-          controller: name,
-          label: 'اسم صاحب الكود',
-          hint: 'مثال: اكرم الثوابي',
-          prefixIcon: Icons.person_rounded,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('كود تفعيل جديد'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              AppTextField(
+                controller: name,
+                label: 'اسم صاحب الكود',
+                hint: 'مثال: اكرم الثوابي',
+                prefixIcon: Icons.person_rounded,
+              ),
+              const SizedBox(height: 14),
+              DropdownButtonFormField<int>(
+                value: durationDays,
+                isExpanded: true,
+                decoration: const InputDecoration(
+                  labelText: 'مدة الصلاحية',
+                  prefixIcon: Icon(Icons.date_range_rounded),
+                ),
+                items: const [
+                  DropdownMenuItem(value: 30, child: Text('شهر واحد')),
+                  DropdownMenuItem(value: 90, child: Text('3 أشهر')),
+                  DropdownMenuItem(value: 365, child: Text('سنة كاملة')),
+                  DropdownMenuItem(value: 1825, child: Text('5 سنوات')),
+                  DropdownMenuItem(value: 3650, child: Text('10 سنوات')),
+                ],
+                onChanged: (v) => setState(() => durationDays = v ?? 365),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('إلغاء'),
+            ),
+            FilledButton(
+              onPressed: () =>
+                  Navigator.pop(context, (name.text.trim(), durationDays)),
+              child: const Text('إنشاء'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('إلغاء'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, name.text.trim()),
-            child: const Text('إنشاء'),
-          ),
-        ],
       ),
     );
-    if (ownerName == null || ownerName.isEmpty || !mounted) return;
+    if (result == null || !mounted) return;
+    final (String? ownerName, int? duration) = result;
+    if (ownerName == null || ownerName.isEmpty) return;
+    final int days = duration ?? 365;
 
     showLoadingDialog(context);
     try {
       final String code = ref.read(authRepositoryProvider).generateCode();
       await ref
           .read(authRepositoryProvider)
-          .createLicense(code: code, ownerName: ownerName);
+          .createLicense(
+            code: code,
+            ownerName: ownerName,
+            durationDays: days,
+          );
       await _load();
       if (mounted) {
         hideLoadingDialog(context);

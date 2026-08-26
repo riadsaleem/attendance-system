@@ -1,5 +1,7 @@
+import 'dart:convert';
 import 'dart:math';
 
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../core/utils/supabase_retry.dart';
@@ -67,6 +69,60 @@ class AuthRepository {
     }).eq('id', uid);
   }
 
+  Future<void> applyPendingSetup() async {
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    final String? raw = prefs.getString('pending_setup');
+    if (raw != null) {
+      final Map<String, dynamic> setup =
+          jsonDecode(raw) as Map<String, dynamic>;
+      final String type = setup['type'] as String;
+      final String name = setup['name'] as String;
+      final String uid = _auth.currentUser!.id;
+
+      await _client.from('profiles').update({
+        'org_name': name,
+        'org_type': type,
+        if (setup['system_type'] != null)
+          'system_type': setup['system_type'] as String,
+      }).eq('id', uid);
+
+      if (setup['majors'] != null) {
+        final String collegeName = type == 'university' ? name : name;
+        await _client.from('colleges').insert({'name': collegeName});
+        final collegeRows = await _client
+            .from('colleges')
+            .select('id')
+            .eq('name', collegeName)
+            .limit(1);
+        final int collegeId = collegeRows.first['id'] as int;
+        for (final String major
+            in (setup['majors'] as List).cast<String>()) {
+          await _client
+              .from('majors')
+              .insert({'name': major, 'college_id': collegeId});
+        }
+      }
+
+      if (setup['branches'] != null) {
+        for (final String branch
+            in (setup['branches'] as List).cast<String>()) {
+          await _client.from('branches').insert({'name': branch});
+        }
+      }
+
+      await prefs.remove('pending_setup');
+      return;
+    }
+
+    final String? type = prefs.getString('pending_org_type');
+    final String? name = prefs.getString('pending_org_name');
+    if (type != null && name != null) {
+      await saveOnboarding(orgName: name, orgType: type);
+      await prefs.remove('pending_org_type');
+      await prefs.remove('pending_org_name');
+    }
+  }
+
   Future<DateTime> activateLicense(String code) async {
     final dynamic expires = await _client.rpc(
       'activate_license',
@@ -95,10 +151,12 @@ class AuthRepository {
   Future<void> createLicense({
     required String code,
     required String ownerName,
+    required int durationDays,
   }) {
     return _client.from('licenses').insert({
       'code': code,
       'owner_name': ownerName,
+      'duration_days': durationDays,
     });
   }
 
