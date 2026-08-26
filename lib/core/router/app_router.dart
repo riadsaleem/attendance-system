@@ -11,13 +11,11 @@ import '../../features/auth/presentation/onboarding_screen.dart';
 import '../../features/auth/presentation/register_screen.dart';
 import '../../features/auth/providers/auth_providers.dart';
 import '../../features/attendance/presentation/absentees_screen.dart';
-import '../../features/attendance/presentation/attendance_screen.dart';
 import '../../features/attendance/presentation/attendance_tab_adapter.dart';
 import '../../features/dashboard/presentation/dashboard_screen.dart';
 import '../../features/home/presentation/main_shell.dart';
 import '../../features/reports/presentation/reports_screen.dart';
 import '../../features/settings/presentation/settings_screen.dart';
-import '../../features/students/presentation/students_screen.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   final GoRouter router = GoRouter(

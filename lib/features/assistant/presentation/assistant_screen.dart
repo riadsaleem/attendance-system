@@ -2,6 +2,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/providers/supabase_provider.dart';
+import '../../auth/providers/auth_providers.dart';
 import '../data/assistant_service.dart';
 
 class AssistantScreen extends ConsumerStatefulWidget {
@@ -15,23 +16,21 @@ class AssistantScreen extends ConsumerStatefulWidget {
 
 class _AssistantScreenState extends ConsumerState<AssistantScreen> {
   late final AssistantService _service;
+  late final List<String> _initialSuggestions;
   final TextEditingController _input = TextEditingController();
   final ScrollController _scroll = ScrollController();
   final List<AssistantMessage> _messages = [];
   bool _thinking = false;
 
-  static const List<String> _initialSuggestions = [
-    'إحصائيات اليوم',
-    'الغائبين اليوم',
-    'الطلاب الذين يحتاجون متابعة',
-    'نسبة الحضور',
-  ];
-
   @override
   void initState() {
     super.initState();
-    _service = AssistantService(ref.read(supabaseClientProvider));
-    _messages.add(const AssistantMessage(
+    final String? orgType =
+        ref.read(currentProfileProvider).valueOrNull?.orgType;
+    _service = AssistantService(ref.read(supabaseClientProvider),
+        orgType: orgType);
+    _initialSuggestions = _service.suggestions();
+    _messages.add(AssistantMessage(
       isFromUser: false,
       text: 'أهلاً! 👋 أنا مساعدك الذكي 🤖\n'
           'اسألني عن أي شيء يخص الحضور والغياب.',

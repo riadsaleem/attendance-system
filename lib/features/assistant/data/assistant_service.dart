@@ -16,20 +16,48 @@ class AssistantMessage {
 }
 
 class AssistantService {
-  AssistantService(this._client);
+  AssistantService(this._client, {this.orgType});
 
   final SupabaseClient _client;
+  final String? orgType;
+
+  bool get staffOnly => orgType == 'staff_only' || orgType == 'company';
+
+  List<String> suggestions() {
+    if (staffOnly) {
+      return const [
+        'الموظفون الحاضرون اليوم',
+        'المتأخرون أكثر من 30 دقيقة',
+        'الغائبون اليوم',
+      ];
+    }
+    return const [
+      'إحصائيات اليوم',
+      'الغائبين اليوم',
+      'الطلاب الذين يحتاجون متابعة',
+      'نسبة الحضور',
+    ];
+  }
 
   Future<String> respond(String input) async {
     final String q = input.trim();
     if (q.isEmpty) return 'اكتب سؤالاً وأنا أساعدك 😊';
 
     if (_has(q, ['مرحبا', 'هلا', 'السلام', 'هاي', 'أهلا', 'اهلا'])) {
-      return 'أهلاً بك! 👋 أنا مساعدك الذكي لنظام الحضور.\n'
-          'اسألني عن إحصائيات اليوم، وضع طالب معين، أو الطلاب الذين يحتاجون متابعة.';
+      return staffOnly
+          ? 'أهلاً بك! 👋 أنا مساعدك لإدارة حضور الموظفين.\n'
+              'اسألني عن حضور اليوم، المتأخرون، أو الغائبون.'
+          : 'أهلاً بك! 👋 أنا مساعدك الذكي لنظام الحضور.\n'
+              'اسألني عن إحصائيات اليوم، وضع طالب معين، أو الطلاب الذين يحتاجون متابعة.';
     }
 
     if (_has(q, ['مساعدة', 'ساعدني', 'وش تسوي', 'وش تقدر', 'قدرات'])) {
+      if (staffOnly) {
+        return 'أقدر أساعدك في:\n'
+            '📊 حضور الموظفين اليوم\n'
+            '⏰ المتأخرون أكثر من 30 دقيقة\n'
+            '❌ قائمة الغائبين اليوم';
+      }
       return 'أقدر أساعدك في:\n'
           '📊 إحصائيات حضور اليوم\n'
           '📈 نسبة الحضور الأسبوعية\n'
@@ -39,42 +67,54 @@ class AssistantService {
           '🏫 إحصائيات صف معين';
     }
 
-    if (_has(q, ['غائب', 'الغائبين', 'ما حضر', 'ما حضروا'])) {
-      return await _absentToday();
+    if (staffOnly && _has(q, ['موظف', 'الموظفين', 'دوام الموظفين'])) {
+      return await _staffToday();
     }
 
-    if (_has(q, ['متابعة', 'خطر', 'متعثر', 'متأخرين', 'تحذير'])) {
+    if (staffOnly && _has(q, ['30 دقيقة', 'نصف ساعة', 'تأخير كبير'])) {
+      return await _staffLateOver30();
+    }
+
+    if (_has(q, ['غائب', 'الغائبين', 'ما حضر', 'ما حضروا'])) {
+      return staffOnly ? await _staffAbsentToday() : await _absentToday();
+    }
+
+    if (!staffOnly && _has(q, ['متابعة', 'خطر', 'متعثر', 'متأخرين', 'تحذير'])) {
       return await _riskyStudents();
     }
 
     if (_has(q, ['نسبة'])) {
-      return await _attendanceRate();
+      return staffOnly ? await _staffToday() : await _attendanceRate();
     }
 
-    if (_has(q, ['اليوم', 'الان', 'الآن', 'إحصائية', 'احصائية', 'ملخص', 'كم طالب'])) {
-      return await _todaySummary();
+    if (_has(q, ['اليوم', 'الان', 'الآن', 'إحصائية', 'احصائية', 'ملخص', 'كم طالب', 'كم موظف'])) {
+      return staffOnly ? await _staffToday() : await _todaySummary();
     }
 
-    if (_has(q, ['أسبوع', 'اسبوع', 'أسبوعية', 'اسبوعية', 'آخر أيام'])) {
+    if (!staffOnly && _has(q, ['أسبوع', 'اسبوع', 'أسبوعية', 'اسبوعية', 'آخر أيام'])) {
       return await _weeklySummary();
     }
 
-    final String? studentName = _extractStudentName(q);
-    if (studentName != null) {
-      return await _studentStatus(studentName);
+    if (!staffOnly) {
+      final String? studentName = _extractStudentName(q);
+      if (studentName != null) {
+        return await _studentStatus(studentName);
+      }
+
+      final String? className = await _extractClassName(q);
+      if (className != null) {
+        return await _classSummary(className);
+      }
     }
 
-    final String? className = await _extractClassName(q);
-    if (className != null) {
-      return await _classSummary(className);
-    }
-
-    return 'ما فهمت سؤالك تماماً 🤔\n'
-        'جرب تسأل:\n'
-        '• "كم طالب حاضر اليوم؟"\n'
-        '• "وضع الطالب أحمد"\n'
-        '• "الغائبين اليوم"\n'
-        '• "الطلاب الذين يحتاجون متابعة"';
+    return staffOnly
+        ? 'ما فهمت سؤالك 🤔\nجرب:\n• "الموظفون الحاضرون اليوم"\n• "الغائبون اليوم"\n• "المتأخرون أكثر من 30 دقيقة"'
+        : 'ما فهمت سؤالك تماماً 🤔\n'
+            'جرب تسأل:\n'
+            '• "كم طالب حاضر اليوم؟"\n'
+            '• "وضع الطالب أحمد"\n'
+            '• "الغائبين اليوم"\n'
+            '• "الطلاب الذين يحتاجون متابعة"';
   }
 
   bool _has(String input, List<String> keywords) {
@@ -131,6 +171,83 @@ class AssistantService {
       counts[s] = (counts[s] ?? 0) + 1;
     }
     return counts;
+  }
+
+  Future<String> _staffToday() async {
+    final String dateStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    final rows = await _client
+        .from('staff_attendance')
+        .select('status')
+        .eq('attendance_date', dateStr);
+    int present = 0, late = 0, absent = 0;
+    for (final Map<String, dynamic> row in rows) {
+      final String s = (row['status'] ?? 'absent') as String;
+      if (s == 'present') {
+        present++;
+      } else if (s == 'late') {
+        late++;
+      } else {
+        absent++;
+      }
+    }
+    if (rows.isEmpty) {
+      return 'لم يتم تسجيل حضور الموظفين اليوم بعد 📝';
+    }
+    return '📊 حضور الموظفين اليوم:\n\n'
+        '✅ حاضر: $present\n'
+        '⏰ متأخر: $late\n'
+        '❌ غائب: $absent';
+  }
+
+  Future<String> _staffAbsentToday() async {
+    final String dateStr = DateFormat('yyyy-MM-dd').format(DateTime.now());
+    final rows = await _client
+        .from('staff_attendance')
+        .select('staff(full_name)')
+        .eq('attendance_date', dateStr)
+        .eq('status', 'absent');
+    if (rows.isEmpty) {
+      return 'ممتاز! ✨ جميع الموظفين حاضرون اليوم 👏';
+    }
+    final StringBuffer buffer = StringBuffer('❌ الموظفون الغائبون اليوم:\n\n');
+    for (final Map<String, dynamic> row in rows) {
+      buffer.writeln(
+          '• ${(row['staff'] as Map<String, dynamic>?)?['full_name'] ?? '؟'}');
+    }
+    return buffer.toString();
+  }
+
+  Future<String> _staffLateOver30() async {
+    final String from = DateFormat('yyyy-MM-dd')
+        .format(DateTime.now().subtract(const Duration(days: 30)));
+    final rows = await _client
+        .from('staff_attendance')
+        .select('staff_id, check_in_time')
+        .eq('status', 'late')
+        .gte('attendance_date', from);
+
+    final Map<int, int> counts = {};
+    for (final Map<String, dynamic> row in rows) {
+      final String? inStr = row['check_in_time'] as String?;
+      if (inStr == null) continue;
+      final DateTime checkIn = DateTime.parse(inStr);
+      final int minutesAfterMidnight =
+          checkIn.hour * 60 + checkIn.minute;
+      if (minutesAfterMidnight - (9 * 60) > 30) {
+        final int id = row['staff_id'] as int;
+        counts[id] = (counts[id] ?? 0) + 1;
+      }
+    }
+    final offenders = counts.entries.where((e) => e.value > 3).toList();
+    if (offenders.isEmpty) {
+      return '👏 لا يوجد موظفون تأخروا أكثر من 30 دقيقة\nأكثر من 3 مرات خلال آخر 30 يوم.';
+    }
+    final StringBuffer buffer =
+        StringBuffer('⚠️ متأخرون +30 دقيقة أكثر من 3 مرات (30 يوم):\n\n');
+    for (final e in offenders) {
+      buffer.writeln('• موظف رقم ${e.key}: ${e.value} مرات');
+    }
+    return buffer.toString();
   }
 
   Future<String> _todaySummary() async {
