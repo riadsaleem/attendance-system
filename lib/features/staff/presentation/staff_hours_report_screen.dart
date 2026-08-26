@@ -212,7 +212,7 @@ class _StaffHoursReportScreenState
     if (_summary == null || _summary!.isEmpty) return;
     showLoadingDialog(context);
     try {
-      final bytes = await ExcelService.generateStaffHours(
+      final bytes = ExcelService.generateStaffHours(
         title: 'تقرير ساعات ${widget.category.pluralAr}',
         rows: _summary!,
         details: _details ?? const [],
